@@ -13,6 +13,16 @@
 - **Representation:** see Table BR-016
 - **Notes/Rationale:** A person's role sets what they may see and do; `dynamic` because multi-role accounts may be wanted later (see `02a` §7).
 
+### BR-018 — IdentityAccess.Account.InactiveHasNoAccess
+- **Statement:** An inactive user account cannot authenticate and cannot perform or pass any protected action, regardless of role.
+- **Type:** Constraint
+- **Source:** Organizational policy (account lifecycle and access control); concretizes the deactivation intent of UC-01
+- **Static/Dynamic:** Dynamic
+- **Influences:** `03_use-cases.md`, `04_data-model.md`, `05_system-design.md`
+- **Downstream impact:** `03_use-cases.md`, `04_data-model.md`, `05_system-design.md`
+- **Related rules:** BR-013, BR-016
+- **Notes/Rationale:** States the behavioral effect of the `inactive` account state that the use cases' `active account` preconditions rely on: an inactive account is denied access rather than removed, so request history stays intact (`03_use-cases.md` UC-01 notes; BR-017). Deactivation itself is performed by an administrator under BR-013; this rule governs what the resulting state permits. `dynamic` because the lifecycle states may grow.
+
 ## Requests Domain
 
 ### BR-002 — Requests.Category.SinglePerRequest
@@ -144,7 +154,7 @@
 - **Static/Dynamic:** Dynamic
 - **Influences:** `01_miniworld.md`, `03_use-cases.md`
 - **Downstream impact:** `03_use-cases.md`
-- **Related rules:** BR-001
+- **Related rules:** BR-001, BR-018
 - **Representation:** see Table BR-016
 - **Notes/Rationale:** Restricts account and role management to the administrator role.
 

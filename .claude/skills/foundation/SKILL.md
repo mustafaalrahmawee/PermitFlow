@@ -46,7 +46,7 @@ context. Cite them in short form so each generated artifact stays auditable:
   sets, the weak entity, and the relations.
 - `[02_business-rules.md BR-001..BR-017]` — the enum value sets and the
   authorization rules; the roles / permissions matrix (Table BR-016).
-- `[03_use-cases.md UC-01..UC-14]` — the legal status transitions confirmed for
+- `[03_use-cases.md UC-00..UC-14]` — the legal status transitions confirmed for
   the guard (UC-08 graph) and the column-justifying use-case lines.
 - `[05_system-design.md]` — fail-closed authorization (§4), the single-node
   synchronous v1 stance (§1.2–§1.4), S3 storage, and the reliability checks.
@@ -80,6 +80,13 @@ described in prose; no code-example files are bundled.
   casts, because native database enum types are costly to alter as a value set
   evolves `[06-foundation-architect.md §5]`. The concrete location, case-naming,
   and helper names are fixed in §5.2. Every enum in §5.2 follows this shape.
+- **Filtered relations are query-constrained.** A relation that names a subset of a
+  related table applies its filter inside the relation definition as a query
+  constraint, so only the matching rows load from the database rather than being
+  narrowed in memory by the caller. When the filtered column is enum-backed, the
+  constraint compares against the enum's stored backing value (the slug), matching
+  the `varchar` the column holds `[06-foundation-architect.md §5]`. §5.4 marks each
+  filtered relation.
 - **Native authorization, fail closed.** Authorization is native Laravel policies
   and gates `[02_business-rules.md BR-016, BR-010..BR-015]`. Role is a fixed value
   set on the user table with no role-maintenance process, so a permissions package
@@ -106,7 +113,7 @@ described in prose; no code-example files are bundled.
   exception on an illegal target. Persistence is the caller's responsibility, so
   the status change and its history entry are saved together in one transaction and
   the durable-write path stays atomic `[06-foundation-architect.md §5;
-  05_system-design.md §4]`. The map is filled in §5.6 from the confirmed transition
+05_system-design.md §4]`. The map is filled in §5.6 from the confirmed transition
   set; a state-machine package is left out because this guard covers the v1 set.
 - **Sanctum SPA auth.** Auth is Laravel Sanctum (stateful SPA session). The
   authenticatable model is the project's `user_accounts` table, not the
@@ -146,16 +153,16 @@ enums for the same value set.
 `request_history_entries.from_status`, and `request_history_entries.to_status` —
 do not generate a second status enum.
 
-| Enum | Stored slugs → spec labels | Source |
-| --- | --- | --- |
-| `Role` | citizen → "Citizen"; staff_member → "Staff member"; administrator → "Administrator" | `[02_business-rules.md BR-001]` / `[04_data-model.md §1.1 User account; §2.1 user_accounts]` |
-| `AccountState` | active → "Active"; inactive → "Inactive" | `[03_use-cases.md UC-01]` / `[04_data-model.md §1.1 User account; §2.1 user_accounts]` |
-| `RequestStatus` | draft → "Draft"; submitted → "Submitted"; in_review → "In Review"; waiting_for_citizen → "Waiting for Citizen"; ready_for_decision → "Ready for Decision"; decided → "Decided" | `[02_business-rules.md BR-004]` / `[04_data-model.md §1.1 Request; §1.2 Request history entry; §2.1 requests; §2.1 request_history_entries]` |
-| `DocumentKind` | supporting → "Supporting"; decision → "Decision" | `[02_business-rules.md BR-006]` / `[04_data-model.md §1.1 Document; §2.1 documents]` |
-| `DecisionOutcome` | approved → "Approved"; rejected → "Rejected" | `[02_business-rules.md BR-008]` / `[04_data-model.md §1.1 Decision; §2.1 decisions]` |
-| `MessageKind` | general → "General"; missing_information_request → "Missing information request"; citizen_reply → "Citizen reply" | `[03_use-cases.md UC-07, UC-10]` / `[04_data-model.md §1.1 Message; §2.1 messages]` |
-| `NotificationType` | request_submitted → "Request submitted"; assigned → "Assigned"; reassigned → "Reassigned"; missing_information_requested → "Missing information requested"; information_provided → "Information provided"; status_changed → "Status changed"; decision_recorded → "Decision recorded"; message_received → "Message received" | `[01_miniworld.md §5]` / `[04_data-model.md §1.1 Notification; §2.1 notifications]` |
-| `HistoryEventType` | status_changed → "Status changed"; assignment_changed → "Assignment changed"; decision_recorded → "Decision recorded"; information_requested → "Information requested"; information_provided → "Information provided"; message_recorded → "Message recorded" | `[02_business-rules.md BR-017]` / `[04_data-model.md §1.2 Request history entry; §2.1 request_history_entries]` |
+| Enum               | Stored slugs → spec labels                                                                                                                                                                                                                                                                                                   | Source                                                                                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Role`             | citizen → "Citizen"; staff_member → "Staff member"; administrator → "Administrator"                                                                                                                                                                                                                                          | `[02_business-rules.md BR-001]` / `[04_data-model.md §1.1 User account; §2.1 user_accounts]`                                                 |
+| `AccountState`     | active → "Active"; inactive → "Inactive"                                                                                                                                                                                                                                                                                     | `[03_use-cases.md UC-01]` / `[04_data-model.md §1.1 User account; §2.1 user_accounts]`                                                       |
+| `RequestStatus`    | draft → "Draft"; submitted → "Submitted"; in_review → "In Review"; waiting_for_citizen → "Waiting for Citizen"; ready_for_decision → "Ready for Decision"; decided → "Decided"                                                                                                                                               | `[02_business-rules.md BR-004]` / `[04_data-model.md §1.1 Request; §1.2 Request history entry; §2.1 requests; §2.1 request_history_entries]` |
+| `DocumentKind`     | supporting → "Supporting"; decision → "Decision"                                                                                                                                                                                                                                                                             | `[02_business-rules.md BR-006]` / `[04_data-model.md §1.1 Document; §2.1 documents]`                                                         |
+| `DecisionOutcome`  | approved → "Approved"; rejected → "Rejected"                                                                                                                                                                                                                                                                                 | `[02_business-rules.md BR-008]` / `[04_data-model.md §1.1 Decision; §2.1 decisions]`                                                         |
+| `MessageKind`      | general → "General"; missing_information_request → "Missing information request"; citizen_reply → "Citizen reply"                                                                                                                                                                                                            | `[03_use-cases.md UC-07, UC-10]` / `[04_data-model.md §1.1 Message; §2.1 messages]`                                                          |
+| `NotificationType` | request_submitted → "Request submitted"; assigned → "Assigned"; reassigned → "Reassigned"; missing_information_requested → "Missing information requested"; information_provided → "Information provided"; status_changed → "Status changed"; decision_recorded → "Decision recorded"; message_received → "Message received" | `[01_miniworld.md §5]` / `[04_data-model.md §1.1 Notification; §2.1 notifications]`                                                          |
+| `HistoryEventType` | status_changed → "Status changed"; assignment_changed → "Assignment changed"; decision_recorded → "Decision recorded"; information_requested → "Information requested"; information_provided → "Information provided"; message_recorded → "Message recorded"                                                                 | `[02_business-rules.md BR-017]` / `[04_data-model.md §1.2 Request history entry; §2.1 request_history_entries]`                              |
 
 ### 5.3 Migrations
 
@@ -244,26 +251,40 @@ Relations, read off `04_data-model.md §1.3`:
 - **UserAccount** — authenticatable account model. Has many requests as
   `ownedRequests` (`owner_user_account_id`); has many requests as
   `assignedRequests` (`responsible_staff_user_account_id`); has many documents as
-  `uploadedDocuments`; has many decisions as `decisionsMade`; has many messages as
-  `sentMessages`; has many messages as `receivedMessages`; has many notifications;
-  has many request history entries as `actedHistoryEntries`,
-  `previousStaffHistoryEntries`, and `newStaffHistoryEntries`; has many
-  organization settings rows as `updatedOrganizationSettings`.
-- **RequestCategory** — has many requests.
-- **Request** — belongs to owner (`UserAccount`), category (`RequestCategory`), and
-  nullable responsible staff member (`UserAccount`); has many documents, messages,
-  history entries, and notifications; has one decision. Uses the status-guard trait
-  from §5.6.
-- **Decision** — belongs to request and deciding staff member; has one
-  `decisionDocument` filtered to `DocumentKind::Decision`; has many history entries.
-- **Document** — belongs to request, uploader, and nullable decision; has many
-  history entries.
-- **Message** — belongs to request, sender, and recipient; has many history entries.
-- **RequestHistoryEntry** — belongs to request; belongs to nullable actor, previous
-  staff member, new staff member, decision, message, and document; has many
-  notifications.
-- **Notification** — belongs to recipient, request, and nullable history entry.
-- **OrganizationSettings** — belongs to nullable `updatedBy` user account.
+  `uploadedDocuments` (`uploaded_by_user_account_id`); has many decisions as
+  `decisionsMade` (`decided_by_user_account_id`); has many messages as
+  `sentMessages` (`sender_user_account_id`); has many messages as
+  `receivedMessages` (`recipient_user_account_id`); has many notifications
+  (`recipient_user_account_id`); has many request history entries as
+  `actedHistoryEntries` (`actor_user_account_id`),
+  `previousStaffHistoryEntries` (`previous_staff_user_account_id`), and
+  `newStaffHistoryEntries` (`new_staff_user_account_id`); has many organization
+  settings rows as `updatedOrganizationSettings` (`updated_by_user_account_id`).
+- **RequestCategory** — has many requests (`request_category_id`).
+- **Request** — belongs to owner (`owner_user_account_id`), category
+  (`request_category_id`), and nullable responsible staff member
+  (`responsible_staff_user_account_id`); has many documents, messages, history
+  entries, and notifications (each on `request_id`); has one decision
+  (`request_id`). Uses the status-guard trait from §5.6.
+- **Decision** — belongs to request (`request_id`) and deciding staff member
+  (`decided_by_user_account_id`); has one `decisionDocument` (`decision_id`), a
+  query-constrained relation filtered to the `DocumentKind::Decision` backing value
+  (§4); has many history entries (`decision_id`).
+- **Document** — belongs to request (`request_id`), uploader
+  (`uploaded_by_user_account_id`), and nullable decision (`decision_id`); has many
+  history entries (`document_id`).
+- **Message** — belongs to request (`request_id`), sender (`sender_user_account_id`),
+  and recipient (`recipient_user_account_id`); has many history entries
+  (`message_id`).
+- **RequestHistoryEntry** — belongs to request (`request_id`); belongs to nullable
+  actor (`actor_user_account_id`), previous staff member
+  (`previous_staff_user_account_id`), new staff member (`new_staff_user_account_id`),
+  decision (`decision_id`), message (`message_id`), and document (`document_id`); has
+  many notifications (`request_history_entry_id`).
+- **Notification** — belongs to recipient (`recipient_user_account_id`), request
+  (`request_id`), and nullable history entry (`request_history_entry_id`).
+- **OrganizationSettings** — belongs to nullable `updatedBy` user account
+  (`updated_by_user_account_id`).
 
 When importing the PermitFlow `Request` model in files that also use
 `Illuminate\Http\Request`, alias one of the two names so the generated code stays
@@ -271,72 +292,59 @@ unambiguous.
 
 ### 5.5 Auth + authorization
 
-**Auth.** Wire Laravel Sanctum as stateful SPA auth with `App\Models\UserAccount`
-as the authenticatable model for the `user_accounts` table, not Laravel's default
-`users` model. Login uses `email` and the implementation-only `password` column
-from §5.3 / §5.10. Inactive accounts do not authenticate successfully and do not
-pass protected ability checks `[derived from 03_use-cases.md UC-01 deactivation
-semantics — implementation-only convention, §5.10]`.
+**Auth mode.** Wire Laravel Sanctum as **API bearer-token authentication only**, using Sanctum personal access tokens sent by clients in the `Authorization: Bearer <token>` header.
 
-**Authorization base.** Native Laravel policies and gates only; no permissions
-package. All checks fail closed and evaluate live (§4). Do **not** implement a
-global administrator allow-all (no `Gate::before` admin bypass): administrators may
-view request-scoped records for authorized oversight and perform the administrator
-operations listed below, but the administrator role alone does not permit actions
-the rules reserve for the owning citizen or responsible staff member — decisions
-stay with responsible staff `[02_business-rules.md BR-007]` and messaging stays
-with the participants `[02_business-rules.md BR-011]`.
+**Authenticatable model.** The authenticatable model is `App\Models\UserAccount` for the `user_accounts` table, not Laravel's default `App\Models\User` model and not the framework-default `users` table. All protected API routes authenticate through Sanctum token authentication against `UserAccount`.
 
-**Request-scoped viewing policies** `[02_business-rules.md BR-016]` — reachable
-only by the owning citizen, the responsible staff member, or authorized
-administrator oversight: `RequestPolicy@view`; `DocumentPolicy@view` (through the
-document's request); `MessagePolicy@view` (through the message's request);
-`DecisionPolicy@view` (through the decision's request);
-`RequestHistoryEntryPolicy@view` (through the history entry's request).
+**Login.** Login uses `email` and the implementation-only `password` column from §5.3 / §5.10. A successful login for an active account creates a Sanctum personal access token and returns the plain-text token once to the API client. The client must store and send that token as `Authorization: Bearer <token>` on later requests. The backend must not rely on a browser session to remember the user.
 
-**Notification policy.** Notifications are user-targeted alerts, not request-scoped
-records. A notification is viewable by its `recipient_user_account_id` only;
-administrator oversight is added only as an explicit
-`NotificationPolicy@viewForOversight` ability. The default notification view must
-not leak one participant's notification to another participant on the same request
-`[derived from 04_data-model.md §2.1 notifications.recipient_user_account_id; bounded
-by BR-016]`.
+**Inactive accounts.** Inactive accounts do not authenticate successfully and do not pass protected ability checks. If credentials match an inactive account, the login attempt fails and no token is created. If an account becomes inactive after tokens already exist, protected routes and policy checks must still deny access for that account, and token revocation may be performed as part of account deactivation. This implements `[03_use-cases.md UC-00; 02_business-rules.md BR-018]`.
 
-**Operation-specific policy abilities** — the v1 authorization surface (actor +
-status precondition). Per-use-case sessions wire the controllers and transactions
-that invoke them:
+**Logout and token lifecycle.** Logout revokes the current access token used for the request. Optional administrative account deactivation may revoke all tokens belonging to that user account.
+
+**Authorization base.** Use native Laravel policies and gates only; do not use a permissions package. All checks fail closed and evaluate live (§4). Do not implement a global administrator allow-all: no `Gate::before` administrator bypass. Administrators may view request-scoped records only through explicit authorized oversight and may perform the administrator operations listed below, but the administrator role alone does not permit actions reserved for the owning citizen or responsible staff member. Decisions stay with responsible staff `[02_business-rules.md BR-007]`, and messaging stays with the request participants `[02_business-rules.md BR-011]`.
+
+**Request-scoped viewing policies `[02_business-rules.md BR-016]`.** These records are reachable only by the owning citizen, the responsible staff member, or authorized administrator oversight:
+
+- `RequestPolicy@view`
+- `DocumentPolicy@view` through the document's request
+- `MessagePolicy@view` through the message's request
+- `DecisionPolicy@view` through the decision's request
+- `RequestHistoryEntryPolicy@view` through the history entry's request
+
+**Notification policy.** Notifications are user-targeted alerts, not request-scoped records. A notification is viewable by its `recipient_user_account_id` only. Administrator oversight is added only as an explicit `NotificationPolicy@viewForOversight` ability. The default notification view must not leak one participant's notification to another participant on the same request `[derived from 04_data-model.md §2.1 notifications.recipient_user_account_id; bounded by BR-016]`.
+
+**Operation-specific policy abilities — the v1 authorization surface.** Per-use-case sessions wire the controllers and transactions that invoke these abilities:
 
 - `RequestPolicy@submit` — owning citizen only `[BR-003; UC-02]`.
-- `RequestPolicy@provideInformation` — owning citizen only, request Draft or
-  Waiting for Citizen `[BR-005; UC-04]`.
+- `RequestPolicy@provideInformation` — owning citizen only, request `Draft` or `Waiting for Citizen` `[BR-005; UC-04]`.
 - `RequestPolicy@review` — responsible staff member only `[BR-009; UC-06]`.
-- `RequestPolicy@requestMissingInformation` — responsible staff member only,
-  request In Review `[BR-009; UC-07]`.
-- `RequestPolicy@markReadyForDecision` — responsible staff member only, request In
-  Review `[BR-009; UC-06/UC-08]`.
-- `RequestPolicy@decide` — responsible staff member only, request Ready for
-  Decision `[BR-007, BR-008, BR-009; UC-09]`.
-- `MessagePolicy@create` — only the request's owning citizen or responsible staff
-  member, and only when the sender/recipient pair matches the request's citizen and
-  responsible staff member `[BR-011; UC-10]`.
-- `DocumentPolicy@createSupporting` — owning citizen, before submission (Draft) or
-  when the request is Waiting for Citizen `[BR-005, BR-006; UC-02, UC-04]`.
-- `DocumentPolicy@createDecisionDocument` — responsible staff member only, as part
-  of recording a decision `[BR-006, BR-007; UC-09]`.
+- `RequestPolicy@requestMissingInformation` — responsible staff member only, request `In Review` `[BR-009; UC-07]`.
+- `RequestPolicy@markReadyForDecision` — responsible staff member only, request `In Review` `[BR-009; UC-06/UC-08]`.
+- `RequestPolicy@decide` — responsible staff member only, request `Ready for Decision` `[BR-007, BR-008, BR-009; UC-09]`.
+- `MessagePolicy@create` — only the request's owning citizen or responsible staff member, and only when the sender/recipient pair matches the request's citizen and responsible staff member `[BR-011; UC-10]`.
+- `DocumentPolicy@createSupporting` — owning citizen, before submission (`Draft`) or when the request is `Waiting for Citizen` `[BR-005, BR-006; UC-02, UC-04]`.
+- `DocumentPolicy@createDecisionDocument` — responsible staff member only, as part of recording a decision `[BR-006, BR-007; UC-09]`.
 
-**Role gates** for operations not tied to one existing request record:
-`assign-requests` → administrator `[BR-010]`; `manage-categories` → administrator
-`[BR-012]`; `manage-accounts` → administrator `[BR-013]`; `manage-settings` →
-administrator `[BR-014]`; `view-reporting` → staff member or administrator
-`[BR-015]`. Reporting still applies request-scope limits at query time: staff
-reporting summarizes only records within the staff member's authorized scope;
-administrator reporting uses the administrator oversight scope
-`[BR-015, BR-016; UC-13, UC-14]`.
+**Role gates for operations not tied to one existing request record.**
 
-**Policy registration.** Register policies for `Request`, `Document`, `Message`,
-`Decision`, `RequestHistoryEntry`, and `Notification`, and the gates in the auth
-service provider. The §7 smoke test proves unauthenticated access is rejected and
-authenticated access is accepted only on an allowed protected route.
+- `assign-requests` → administrator `[BR-010]`.
+- `manage-categories` → administrator `[BR-012]`.
+- `manage-accounts` → administrator `[BR-013]`.
+- `manage-settings` → administrator `[BR-014]`.
+- `view-reporting` → staff member or administrator `[BR-015]`.
+
+Reporting still applies request-scope limits at query time: staff reporting summarizes only records within the staff member's authorized scope; administrator reporting uses the administrator oversight scope `[BR-015, BR-016; UC-13, UC-14]`.
+
+**Policy registration.** Register policies for `Request`, `Document`, `Message`, `Decision`, `RequestHistoryEntry`, and `Notification`, and register the role gates in the auth service provider. Policy and gate registration must not introduce a global administrator bypass.
+
+**Bearer-token smoke test.** The §7 smoke test proves all of the following:
+
+- unauthenticated API access without a bearer token is rejected;
+- login with valid credentials for an active account returns a bearer token;
+- login with valid credentials for an inactive account returns no token;
+- authenticated access with `Authorization: Bearer <token>` is accepted only on an allowed protected route;
+- authenticated access with a valid token still fails when the policy or gate denies the requested ability.
 
 ### 5.6 Status guard
 
@@ -356,14 +364,14 @@ state and audit state cannot drift apart.
 
 Allowed v1 transition map:
 
-| From | Legal targets | Source |
-| --- | --- | --- |
-| `draft` | `submitted` | `[03_use-cases.md UC-02 step 8]` |
-| `submitted` | `in_review` | `[03_use-cases.md UC-06 step 5]` |
-| `in_review` | `waiting_for_citizen`, `ready_for_decision` | `[03_use-cases.md UC-07 step 5; UC-08 notes]` |
-| `waiting_for_citizen` | `in_review` | `[03_use-cases.md UC-04 step 7]` |
-| `ready_for_decision` | `decided` | `[03_use-cases.md UC-09 step 8]` |
-| `decided` | no targets; terminal in v1 | `[03_use-cases.md UC-05 ext. 2b; UC-08 notes]` |
+| From                  | Legal targets                               | Source                                         |
+| --------------------- | ------------------------------------------- | ---------------------------------------------- |
+| `draft`               | `submitted`                                 | `[03_use-cases.md UC-02 step 8]`               |
+| `submitted`           | `in_review`                                 | `[03_use-cases.md UC-06 step 5]`               |
+| `in_review`           | `waiting_for_citizen`, `ready_for_decision` | `[03_use-cases.md UC-07 step 5; UC-08 notes]`  |
+| `waiting_for_citizen` | `in_review`                                 | `[03_use-cases.md UC-04 step 7]`               |
+| `ready_for_decision`  | `decided`                                   | `[03_use-cases.md UC-09 step 8]`               |
+| `decided`             | no targets; terminal in v1                  | `[03_use-cases.md UC-05 ext. 2b; UC-08 notes]` |
 
 Do not add reopen, withdrawal, appeal, cancellation, or direct approval/rejection
 transitions — they are outside v1 `[00_project-context.md §7]`. Do not install a
@@ -442,29 +450,31 @@ reference or the label `implementation-only convention`:
 - string-backed enum shape under `app/Enums`: stored slug, `label()`, `values()`,
   `options()`, PascalCase cases `[§4, §5.2]`;
 - enum columns stored as `varchar` and cast in Eloquent `[§4]`;
+- filtered relations apply their filter as a query constraint inside the relation,
+  comparing enum-backed columns against the stored backing value `[§4, §5.4]`;
 - native Laravel policies and gates only `[BR-010..BR-016]`;
 - authorization fails closed and is evaluated live `[05 §4]`;
 - no global administrator allow-all `[BR-007, BR-011, Table BR-016]`;
 - request-scoped visibility = owner, responsible staff member, authorized
   administrator oversight `[BR-016]`;
 - notifications are recipient-only, not request-scoped `[implementation-only
-  convention, bounded by BR-016]`;
+convention, bounded by BR-016]`;
 - every foreign key uses restrict-on-delete `[04 §2.1]`;
 - accounts with history are deactivated, not physically deleted `[UC-01, BR-017]`;
 - inactive accounts cannot authenticate or pass protected checks
-  `[implementation-only convention, from UC-01 deactivation]`;
+  `[03_use-cases.md UC-00; 02_business-rules.md BR-018]`;
 - request history is written explicitly, not by model-event auto logging
   `[BR-017]`;
 - `request_history_entries.summary` is a frozen audit snapshot `[BR-017, 04 §2.1]`;
 - status changes go through the request status guard, which sets status in memory
   only; status persistence and history writing share one transaction `[§4, §5.6,
-  05 §4]`;
+05 §4]`;
 - Sanctum SPA auth uses `UserAccount` / `user_accounts`, not the default `User` /
   `users` `[§4]`;
 - implementation-only auth columns `user_accounts.password` and nullable
   `remember_token` `[implementation-only convention]`;
 - one consistent mass-assignment convention across models `[implementation-only
-  convention]`;
+convention]`;
 - file bytes live in MinIO/S3; `documents.file_reference` stores the object key;
   file access is authorized and request-verified before serving `[04 §2.1, 05 §4]`;
 - no cache, search index, queue worker, scheduler, permissions package,

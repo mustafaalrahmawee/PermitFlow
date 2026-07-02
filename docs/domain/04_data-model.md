@@ -134,7 +134,7 @@
 - `display_name` — varchar, not null. _(**Derived from:** `01_miniworld.md §3`)_
 - `email` — varchar, not null, unique. _(**Derived from:** structural)_
 - `role` — varchar, not null, allowed values: {Citizen, Staff member, Administrator}. _(**Derived from:** `BR-001`)_
-- `account_state` — varchar, not null, allowed values: {Active, Inactive}. _(**Derived from:** `03_use-cases.md UC-01`)_
+- `account_state` — varchar, not null, allowed values: {Active, Inactive}. _(**Derived from:** `03_use-cases.md UC-01`; access effect of `Inactive` governed by `BR-018`)_
 - `created_at`, `updated_at` — timestamp, not null.
 - **Indexes:** only those implied by the primary key and unique constraints. Secondary / performance indexes are deliberately deferred in v1 — not planned in this phase.
 - **Notes:** Role is a value set rather than a separate table because v1 has no independent role-maintenance process.

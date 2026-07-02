@@ -2,7 +2,33 @@
 
 ## Identity and Access Domain
 
+### UC-00 — Authenticate (Sign In)
+
+- **Scope:** PermitFlow
+- **Primary Actor:** Registered user (Citizen, Staff member, or Administrator)
+- **Supporting Actors:** `_None_`
+- **Level:** Subfunction 🐚
+- **Trigger:** A person wants to access the portal under their user account.
+- **Preconditions:** A user account exists for the person.
+- **Main Success Scenario:**
+  1. The person provides their account credentials.
+  2. The system verifies the credentials against a known user account.
+  3. The system confirms the account is active.
+  4. The system establishes an authenticated session for the account.
+  5. The system makes functions available according to the account's single role.
+- **Extensions:**
+  - **2a.** The credentials do not match a known account → the system denies access without revealing which part failed.
+  - **3a.** The account exists but is inactive → the system denies access and establishes no session; reference `BR-018`.
+  - **4a.** The session cannot be established → the system reports that sign-in did not complete and grants no access.
+- **Guarantees:**
+  - Minimal (on failure): No session is established and no access is granted for unverified or inactive accounts.
+  - Success (on success): The person has an authenticated session scoped to their account's single role.
+- **Business objects touched:** `User account`, `Role`
+- **Business Rules:** `BR-001`, `BR-018`
+- **Notes:** Sign-in is a subfunction that the user-goal use cases assume as a precondition (e.g., UC-02 “an active user account with the Citizen role”). It is documented here so authentication behavior — including the rejection of inactive accounts — has an explicit anchor for the actors who are not administrators. Registration and self-service account creation are out of v1; accounts are provisioned through UC-01.
+
 ### UC-01 — Manage User Accounts and Roles
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Administrator
 - **Supporting Actors:** `_None_`
@@ -36,6 +62,7 @@
 ## Requests Domain
 
 ### UC-02 — Submit a Request
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Citizen
 - **Supporting Actors:** Administrator
@@ -56,6 +83,7 @@
 - **Extensions:**
   - **3a.** The citizen selects no category or attempts multiple categories → the system blocks submission until exactly one active category is selected; reference `BR-002`.
   - **3b.** The selected category is inactive → the system prevents the category from being used for a new request.
+  - **3c.** No active request category is available → the citizen cannot select a category and the request cannot be submitted until an administrator makes an active category available; reference `BR-002`.
   - **5a.** The citizen attaches a document that is not a supporting file for the request → the system rejects the attachment for this use case; reference `BR-006`.
   - **5b.** The system cannot accept or store a supporting document → the system rejects that document, keeps the request editable, and shows that the document was not attached.
   - **6a.** The citizen finds wrong or missing information during review → the request remains Draft and the citizen may correct it before submission.
@@ -70,6 +98,7 @@
 - **Notes:** The process “Review a request before submission” is subsumed into steps 6–7 because it serves the submit goal. Exact upload limits are not defined in the current business rules and are therefore not specified here.
 
 ### UC-03 — Track Request Progress
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Citizen
 - **Supporting Actors:** `_None_`
@@ -98,6 +127,7 @@
 ## Documents Domain
 
 ### UC-04 — Provide Supporting Information
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Citizen
 - **Supporting Actors:** Staff member
@@ -134,6 +164,7 @@
 ## Review Workflow Domain
 
 ### UC-05 — Assign or Reassign a Request for Handling
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Administrator
 - **Supporting Actors:** Staff member
@@ -170,6 +201,7 @@
 - **Notes:** Reassignment is allowed in v1 before a request is Decided. Draft requests cannot be assigned, and Decided requests are terminal for v1.
 
 ### UC-06 — Review an Assigned Request
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Staff member
 - **Supporting Actors:** Citizen
@@ -201,6 +233,7 @@
 - **Notes:** The process “Verify submitted information” is subsumed here because verification is part of reviewing an assigned request.
 
 ### UC-07 — Request Missing Information
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Staff member
 - **Supporting Actors:** Citizen
@@ -230,6 +263,7 @@
 - **Notes:** This use case is high-risk because it opens controlled post-submission input; the extension set keeps that boundary explicit.
 
 ### UC-08 — Update Request Progress
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Staff member
 - **Supporting Actors:** Citizen
@@ -259,6 +293,7 @@
 - **Notes:** The allowed v1 transition graph is: Draft → Submitted; Submitted → In Review; In Review → Waiting for Citizen; Waiting for Citizen → In Review; In Review → Ready for Decision; Ready for Decision → Decided. Decided is terminal in v1.
 
 ### UC-09 — Record a Decision
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Staff member
 - **Supporting Actors:** Citizen
@@ -296,6 +331,7 @@
 ## Communication Domain
 
 ### UC-10 — Exchange Request Messages
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Citizen or Staff member
 - **Supporting Actors:** Citizen or Staff member
@@ -328,6 +364,7 @@
 ## Administration Domain
 
 ### UC-11 — Manage Request Categories
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Administrator
 - **Supporting Actors:** `_None_`
@@ -358,6 +395,7 @@
 - **Notes:** Used categories are historically protected in v1. Deactivation is the safe alternative to deletion when a category has already been used.
 
 ### UC-12 — Manage Organization Settings
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Administrator
 - **Supporting Actors:** `_None_`
@@ -385,6 +423,7 @@
 ## Reporting Domain
 
 ### UC-13 — View Staff Reporting Summaries
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Staff member
 - **Supporting Actors:** `_None_`
@@ -410,6 +449,7 @@
 - **Notes:** This use case is one half of the miniworld process “View reporting summaries”; the administrator variant is UC-14.
 
 ### UC-14 — View Administrative Reporting Summaries
+
 - **Scope:** PermitFlow
 - **Primary Actor:** Administrator
 - **Supporting Actors:** `_None_`
@@ -435,4 +475,5 @@
 - **Notes:** This use case keeps the same reporting process but separates the administrator as a distinct primary actor.
 
 ## Open Questions
+
 - _None._

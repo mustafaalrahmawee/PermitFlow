@@ -161,6 +161,15 @@ proceeds).
   The stored database value is the slug; columns stay `varchar` with application
   casts, because native database enum types are costly to alter as a value set
   evolves. Every enum in the inventory follows this one shape.
+- **Filtered relations are query-constrained.** When a relation names a subset of
+  a related table — a specific-kind child, a specific-state set — the filter is
+  part of the relation definition and runs as a query constraint, so the database
+  returns only the matching rows; it is never an unconstrained relation the caller
+  narrows in memory after loading. When the filtered column is enum-backed, the
+  constraint compares against the enum's stored backing value, consistent with the
+  string-backed-enum-as-`varchar` convention above, so the comparison matches what
+  the column actually stores. This keeps the intent — which subset the relation
+  names — inside the relation and off every call site, and keeps the read efficient.
 - **Native authorization.** Authorization is native Laravel policies / gates.
   Role is a fixed value set on the user table with no role-maintenance process,
   so a permissions package would introduce tables the model does not define and
@@ -202,6 +211,12 @@ proceeds).
   relation, and policy traces to a `docs/domain/` line, or it is a named
   implementation-only convention recorded in the project conventions file, or it
   is a conflict to report.
+- **Name the foreign key on every relation explicitly.** State the foreign-key
+  column for each relation in §5.4 and pass it as the explicit argument on the
+  Eloquent relation call rather than relying on Laravel's naming convention. A
+  related table may hold several foreign keys, so an inferred key is ambiguous and
+  a generator can silently pick the wrong one. Every relation names its column,
+  including single-key relations, so the rule is uniform and self-documenting.
 - **Generate in dependency order.** Enums → migrations → models → auth →
   authorization → status guard → factories / seeders → storage → docker-compose
   → project conventions file. Each layer depends on the ones before it.
