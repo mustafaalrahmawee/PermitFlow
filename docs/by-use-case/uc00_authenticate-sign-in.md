@@ -50,8 +50,8 @@ No dedicated per-UC target; UC-00 is not listed among the critical UCs in `05_sy
 - The single database is the system of record for `user_accounts`; token issuance must not imply access if account checks fail. [05_system-design.md §1.1] [docs/conventions.md Auth]
 
 ## API seam  [derived — fragile]
-- `POST /api/auth/login` — public; request fields: `email`, `password`; success returns the authenticated account summary plus a Sanctum bearer token; access made available according to `user_accounts.role`. [derived from 03_use-cases.md UC-00 + docs/conventions.md Auth]
-- `GET /api/auth/me` — `auth:sanctum`; returns the current active account and role used by the frontend to show available functions. [derived from 03_use-cases.md UC-00 step 5 + docs/conventions.md Auth]
+- `POST /api/login` — public; request fields: `email`, `password`; success returns the authenticated account summary plus a Sanctum bearer token (`{token, token_type, user}`); access made available according to `user_accounts.role`. [derived from 03_use-cases.md UC-00 + docs/conventions.md Auth] [corrected to foundation route: was `POST /api/auth/login`]
+- `GET /api/user` — `auth:sanctum`; returns the current account (`{user}`) and its role used by the frontend to show available functions. [derived from 03_use-cases.md UC-00 step 5 + docs/conventions.md Auth] [corrected to foundation route: was `GET /api/auth/me`]
 
 ## QA map  [derived — fragile]
 - ext 2a → HTTP `401`; expected DB effect: no new `personal_access_tokens` row for the failed attempt; response must not reveal whether email or password failed. [derived from 03_use-cases.md UC-00 ext 2a + docs/conventions.md API error responses]

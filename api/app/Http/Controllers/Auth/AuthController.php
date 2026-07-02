@@ -7,7 +7,6 @@ use App\Models\UserAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Sanctum API bearer-token authentication (§5.5).
@@ -41,13 +40,16 @@ class AuthController extends Controller
 
         // Fail closed and uniformly: unknown email, wrong password, or an inactive
         // account all produce the same failure and never mint a token.
+        // Authentication denial is 401 (not a 422 validation error); the response
+        // never reveals which part failed nor that an account exists but is inactive
+        // [docs/conventions.md API error responses — 401; 02_business-rules.md BR-018].
         if ($account === null
             || ! Hash::check($credentials['password'], (string) $account->password)
             || ! $account->isActive()
         ) {
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
-            ]);
+            return response()->json([
+                'message' => 'The provided credentials are incorrect.',
+            ], 401);
         }
 
         $token = $account->createToken('api')->plainTextToken;
