@@ -5,7 +5,10 @@ traces to a domain spec or is a named implementation-only decision. Generated
 code that would contradict a spec is a conflict to report, not a free choice.
 
 ## Stack
-- Laravel 13 (PHP 8.3), backend lives in `api/`. Frontend SPA in `app/` (Nuxt).
+- Laravel 13 (PHP 8.4), backend lives in `api/`.
+- Frontend SPA in `app/`: Nuxt 4, Vue 3, TypeScript. UI via shadcn-vue +
+  Tailwind CSS 3; state via Pinia; composables via VueUse; forms validated with
+  Vee-Validate + Zod; icons from Lucide.
 - Database: PostgreSQL (system of record) `[05_system-design.md §1.1]`.
 - Single-node, synchronous v1: no queue, scheduler, or async worker
   `[05_system-design.md §1.4; 01_miniworld.md §5]`.
@@ -78,6 +81,29 @@ code that would contradict a spec is a conflict to report, not a free choice.
   that clients send as `Authorization: Bearer <token>`; there is no stateful SPA
   session and the backend never relies on a browser session. Protected routes use
   `auth:sanctum`. Login uses `email` + the `password` column.
+
+## API error responses (fail closed)
+Concrete HTTP status codes for denied or failed API actions, so per-use-case QA
+maps translate acceptance items into requests and DB checks without inventing
+codes. Standard REST mapping; errors deny rather than leak.
+- **401 Unauthorized** — authentication denial: credentials do not match a known
+  account, or an inactive account attempts sign-in or a protected route. The
+  login response does not reveal which part failed, nor that an account exists
+  but is inactive `[03_use-cases.md UC-00; BR-018]`.
+- **403 Forbidden** — authorization denial: an authenticated actor lacks the
+  required policy or role gate (e.g. `manage-accounts`). Account management is a
+  role gate, not request-scoped, so denial is 403 `[BR-013; BR-016]`.
+- **404 Not Found** — a targeted record does not exist; and, under request-scoped
+  visibility, a record outside the actor's scope is reported as not found rather
+  than forbidden, so existence is not revealed `[BR-016]`.
+- **422 Unprocessable Entity** — validation failure (Laravel default): e.g. no
+  role or more than one role selected `[BR-001]`.
+- **409 Conflict** — lifecycle conflict: an operation blocked by current state,
+  e.g. deactivating an account tied to an undecided request, or a v1 role change
+  on an account connected to request history `[03_use-cases.md UC-01]`.
+- **500 Internal Server Error** — an unexpected persistence failure; the write
+  transaction rolls back and no partial change is durable
+  `[§ Status transitions; 05_system-design.md §4]`.
 
 ## Storage
 - File attachments use the **S3 disk against local MinIO**
