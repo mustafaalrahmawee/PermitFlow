@@ -1,14 +1,37 @@
-# PermitFlow local stack (§5.9): the app, the relational database, and MinIO.
+# PermitFlow local stack (§5.9): frontend, backend, database, and MinIO.
+# Lives at the project root because the database and MinIO are project-wide
+# infrastructure shared by both apps, not api/-only services.
+#   app  -> Nuxt frontend  (./app)
+#   api  -> Laravel backend (./api)
 # No async worker, queue, or scheduler — v1 notifications are in-portal and
 # synchronous [01_miniworld.md §5; 05_system-design.md §1.4].
 
 services:
   app:
-    image: serversideup/php:8.3-cli
+    image: node:22
+    working_dir: /app
+    # Install inside the container so native deps match Linux, then run Nuxt dev.
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./app:/app
+      # Keep the container's own node_modules (host build is macOS-native).
+      - pf_app_node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      # Browser talks to the API via the host-published port.
+      NUXT_PUBLIC_API_BASE: http://localhost:8000/api
+    depends_on:
+      api:
+        condition: service_started
+
+  api:
+    # PHP 8.4 to match the vendor/ platform requirement (>= 8.4.1).
+    image: serversideup/php:8.4-cli
     working_dir: /var/www/html
     command: php artisan serve --host=0.0.0.0 --port=8000
     volumes:
-      - ./:/var/www/html
+      - ./api:/var/www/html
     ports:
       - "8000:8000"
     environment:
@@ -74,3 +97,4 @@ services:
 volumes:
   pf_db_data:
   pf_minio_data:
+  pf_app_node_modules:
