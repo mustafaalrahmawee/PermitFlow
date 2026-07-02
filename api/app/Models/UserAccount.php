@@ -11,10 +11,12 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
- * The authenticatable user account (Sanctum SPA, §5.5).
+ * The authenticatable user account (Sanctum API bearer-token auth, §5.5).
  *
- * Source: [04_data-model.md §2.1 user_accounts]. The framework-default `users`
- * table is left in place but unused for auth; AUTH_MODEL points here.
+ * Source: [04_data-model.md §2.1 user_accounts]. Auth uses Sanctum personal
+ * access tokens (bearer tokens), not a stateful SPA session. The
+ * framework-default `users` table is left in place but unused for auth;
+ * AUTH_MODEL points here.
  */
 class UserAccount extends Authenticatable
 {

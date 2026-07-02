@@ -3,7 +3,7 @@ name: foundation
 description: >-
   Scaffold the PermitFlow Laravel backend the domain specs describe: eight
   string-backed enums, nine migrations and Eloquent models with restrict-on-delete
-  foreign keys, Sanctum SPA auth on the user_accounts model, request-scoped
+  foreign keys, Sanctum API bearer-token auth on the user_accounts model, request-scoped
   policies plus role gates that fail closed, an explicit request status guard,
   S3/MinIO storage, dev factories and seeders, a docker-compose stack, and a
   project conventions file. Every artifact traces to docs/domain/00..05 or a named
@@ -115,9 +115,11 @@ described in prose; no code-example files are bundled.
   the durable-write path stays atomic `[06-foundation-architect.md §5;
 05_system-design.md §4]`. The map is filled in §5.6 from the confirmed transition
   set; a state-machine package is left out because this guard covers the v1 set.
-- **Sanctum SPA auth.** Auth is Laravel Sanctum (stateful SPA session). The
-  authenticatable model is the project's `user_accounts` table, not the
-  framework-default `users` `[06-foundation-architect.md §5]`.
+- **Sanctum API bearer-token auth.** Auth is Laravel Sanctum using API personal
+  access tokens only (bearer tokens in the `Authorization: Bearer <token>` header),
+  not a stateful SPA session. The authenticatable model is the project's
+  `user_accounts` table, not the framework-default `users`
+  `[06-foundation-architect.md §5]`.
 - **Implementation-only auth columns.** `user_accounts` gains a `password` column
   and a nullable `remember_token` as implementation-only columns beyond the
   conceptual data model, because local login needs a credential the conceptual
@@ -135,7 +137,7 @@ like artifact from its one §4 description so the generated code is uniform.
 
 ### 5.1 Composer packages
 
-Only the packages a convention requires: `laravel/sanctum` (SPA auth, §4) and the
+Only the packages a convention requires: `laravel/sanctum` (API bearer-token auth, §4) and the
 Flysystem S3 adapter (`league/flysystem-aws-s3-v3`) for the S3/MinIO disk (§4). No
 permissions, activity-log, state-machine, or v1 test-suite package
 `[06-foundation-architect.md §5 "Minimal dependency surface"]`.
@@ -469,7 +471,7 @@ convention, bounded by BR-016]`;
 - status changes go through the request status guard, which sets status in memory
   only; status persistence and history writing share one transaction `[§4, §5.6,
 05 §4]`;
-- Sanctum SPA auth uses `UserAccount` / `user_accounts`, not the default `User` /
+- Sanctum API bearer-token auth uses `UserAccount` / `user_accounts`, not the default `User` /
   `users` `[§4]`;
 - implementation-only auth columns `user_accounts.password` and nullable
   `remember_token` `[implementation-only convention]`;

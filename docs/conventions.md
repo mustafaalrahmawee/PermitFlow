@@ -72,11 +72,12 @@ code that would contradict a spec is a conflict to report, not a free choice.
   `view-reporting` → staff member or administrator `[BR-015]`.
 
 ## Auth
-- **Laravel Sanctum, stateful SPA session.** The authenticatable model is
+- **Laravel Sanctum, API bearer-token auth only.** The authenticatable model is
   `App\Models\UserAccount` (table `user_accounts`), set via `AUTH_MODEL`, not the
-  framework-default `users` `[§4]`. The api group is made stateful with
-  `$middleware->statefulApi()` in `bootstrap/app.php`; protected routes use
-  `auth:sanctum`. Login uses `email` + the `password` column through the web guard.
+  framework-default `users` `[§4]`. Login issues a Sanctum personal access token
+  that clients send as `Authorization: Bearer <token>`; there is no stateful SPA
+  session and the backend never relies on a browser session. Protected routes use
+  `auth:sanctum`. Login uses `email` + the `password` column.
 
 ## Storage
 - File attachments use the **S3 disk against local MinIO**
@@ -85,7 +86,7 @@ code that would contradict a spec is a conflict to report, not a free choice.
   reference belongs to the in-scope request before serving `[BR-016]`.
 
 ## Dependencies (minimal surface)
-- Only `laravel/sanctum` (SPA auth) and `league/flysystem-aws-s3-v3` (S3/MinIO
+- Only `laravel/sanctum` (API bearer-token auth) and `league/flysystem-aws-s3-v3` (S3/MinIO
   disk) added beyond the skeleton. No permissions, activity-log, or state-machine
   package `[§5.1]`.
 
