@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 // to the role-aware landing), authentication denial (ext 2a/3a → the API's
 // generic 401 message, never revealing which part failed), and validation error.
 
-definePageMeta({ layout: "guest" });
+definePageMeta({ layout: "guest", middleware: "guest" });
 
 const auth = useAuthStore();
 const router = useRouter();

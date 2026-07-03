@@ -12,11 +12,6 @@ const router = useRouter();
 const loading = ref(true);
 
 onMounted(async () => {
-  if (!auth.token) {
-    await router.replace("/login");
-    return;
-  }
-
   try {
     if (!auth.user) {
       await auth.fetchUser();

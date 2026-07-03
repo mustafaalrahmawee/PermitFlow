@@ -2,8 +2,9 @@
 import tailwindcss from "@tailwindcss/vite";
 export default defineNuxtConfig({
   ssr: false,
+  
   compatibilityDate: "2025-07-15",
-  devtools: { enabled: true },
+  devtools: { enabled: false},
   modules: ["@pinia/nuxt", "@vueuse/nuxt", "nuxt-lucide-icons", "shadcn-nuxt"],
   runtimeConfig: {
     public: {
