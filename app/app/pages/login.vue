@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { z } from "zod";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // UC-00 sign-in. Posts to the `POST /api/login` seam via the auth store and
 // renders the three states the acceptance checklist implies: success (redirect
 // to the role-aware landing), authentication denial (ext 2a/3a → the API's
 // generic 401 message, never revealing which part failed), and validation error.
+
+definePageMeta({ layout: "guest" });
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -70,53 +77,47 @@ async function onSubmit(): Promise<void> {
 
 <template>
   <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-    <div class="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-      <h1 class="text-2xl font-semibold tracking-tight">Sign in to PermitFlow</h1>
-      <p class="mt-1 text-sm text-slate-500">Access your account to manage permit requests.</p>
+    <Card>
+      <CardHeader>
+        <CardTitle class="text-2xl">Sign in to PermitFlow</CardTitle>
+        <CardDescription>Access your account to manage permit requests.</CardDescription>
+      </CardHeader>
 
-      <p
-        v-if="formError"
-        role="alert"
-        class="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-      >
-        {{ formError }}
-      </p>
+      <CardContent>
+        <Alert v-if="formError" variant="destructive" class="mb-6">
+          <AlertDescription>{{ formError }}</AlertDescription>
+        </Alert>
 
-      <form class="mt-6 space-y-4" novalidate @submit.prevent="onSubmit">
-        <div>
-          <label for="email" class="block text-sm font-medium text-slate-700">Email</label>
-          <input
-            id="email"
-            v-model="email"
-            type="email"
-            autocomplete="username"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            :aria-invalid="Boolean(fieldErrors.email)"
-          />
-          <p v-if="fieldErrors.email" class="mt-1 text-xs text-red-600">{{ fieldErrors.email }}</p>
-        </div>
+        <form class="space-y-4" novalidate @submit.prevent="onSubmit">
+          <div class="space-y-2">
+            <Label for="email">Email</Label>
+            <Input
+              id="email"
+              v-model="email"
+              type="email"
+              autocomplete="username"
+              :aria-invalid="Boolean(fieldErrors.email)"
+            />
+            <p v-if="fieldErrors.email" class="text-xs text-destructive">{{ fieldErrors.email }}</p>
+          </div>
 
-        <div>
-          <label for="password" class="block text-sm font-medium text-slate-700">Password</label>
-          <input
-            id="password"
-            v-model="password"
-            type="password"
-            autocomplete="current-password"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            :aria-invalid="Boolean(fieldErrors.password)"
-          />
-          <p v-if="fieldErrors.password" class="mt-1 text-xs text-red-600">{{ fieldErrors.password }}</p>
-        </div>
+          <div class="space-y-2">
+            <Label for="password">Password</Label>
+            <Input
+              id="password"
+              v-model="password"
+              type="password"
+              autocomplete="current-password"
+              :aria-invalid="Boolean(fieldErrors.password)"
+            />
+            <p v-if="fieldErrors.password" class="text-xs text-destructive">{{ fieldErrors.password }}</p>
+          </div>
 
-        <button
-          type="submit"
-          :disabled="submitting"
-          class="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {{ submitting ? "Signing in…" : "Sign in" }}
-        </button>
-      </form>
-    </div>
+          <Button type="submit" class="w-full" :disabled="submitting">
+            {{ submitting ? "Signing in…" : "Sign in" }}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   </main>
 </template>
