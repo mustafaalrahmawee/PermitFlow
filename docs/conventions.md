@@ -1,4 +1,4 @@
-# PermitFlow — Project Conventions (Laravel backend)
+# PermitFlow — Project Conventions
 
 Always-true conventions for later per-domain and per-use-case sessions. Each
 traces to a domain spec or is a named implementation-only decision. Generated
@@ -115,6 +115,17 @@ codes. Standard REST mapping; errors deny rather than leak.
 - Only `laravel/sanctum` (API bearer-token auth) and `league/flysystem-aws-s3-v3` (S3/MinIO
   disk) added beyond the skeleton. No permissions, activity-log, or state-machine
   package `[§5.1]`.
+
+## Frontend routing (guards & layout)
+- **Auth is a global allowlist, not per-page.** One global route middleware
+  protects every page and redirects to sign-in when there is no token; public
+  pages are named in its allowlist. The default layout auto-applies. An
+  authenticated page therefore declares neither layout nor middleware — the
+  defaults cover it (implementation-only decision).
+- **A public/guest page is registered in two coupled places:** its name is added
+  to the global middleware's allowlist, and the page is given the guest layout
+  plus the guest middleware (which bounces an already-authenticated session away
+  from the form). Omitting either is the routing bug to avoid.
 
 ## Implementation-only decisions (beyond the conceptual data model)
 - `user_accounts.password` (varchar) and `user_accounts.remember_token` (varchar,
