@@ -81,7 +81,7 @@ No dedicated per-UC target; UC-01 is not listed among the critical UCs in `05_sy
 - `manage-accounts` gate registered in `AppServiceProvider`. [derived from docs/conventions.md Authorization]
 - `user_accounts` migration/model plus role and account-state enum/value-set validation. [derived from 04_data-model.md §2.1]
 - Cross-domain migrations/models for `requests`, `messages`, `decisions`, and `request_history_entries` are needed for lifecycle blockers. [derived from 03_use-cases.md UC-01 extensions]
-- Bootstrap administrator provisioning (an administrator account exists before this use case; self-service registration is out of v1) — see coordinator. [identity-and-access.md Build order & dependencies]
+- Bootstrap administrator provisioning: a seeded or manually created administrator account exists before this use case is usable; self-service registration is out of v1. [derived from 03_use-cases.md UC-00 notes + UC-01 preconditions]
 
 ## Notes
 v1 uses deactivation rather than physical deletion for accounts that have request history. Role changes are deliberately conservative because changing historical ownership or responsibility would weaken traceability. [03_use-cases.md UC-01]

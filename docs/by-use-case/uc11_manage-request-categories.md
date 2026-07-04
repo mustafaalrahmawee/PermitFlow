@@ -74,7 +74,7 @@ No dedicated per-UC target; UC-11 is not listed among the critical UCs in `05_sy
 - `manage-categories` gate registered in `AppServiceProvider`. [derived from docs/conventions.md Authorization]
 - `request_categories` migration/model. [derived from 04_data-model.md §2.1]
 - `requests` migration/model, for the used-category delete/rename blockers. [derived from 03_use-cases.md UC-11 extensions]
-- A bootstrap administrator account (see coordinator). [administration.md Build order & dependencies]
+- A bootstrap administrator account exists (seeded or manually created; self-service registration is out of v1). [derived from 03_use-cases.md UC-01 preconditions + UC-00 notes]
 
 ## Notes
 - Used categories are historically protected in v1. Deactivation is the safe alternative to deletion when a category has already been used. [03_use-cases.md UC-11]

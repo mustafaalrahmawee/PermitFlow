@@ -62,7 +62,7 @@ No dedicated per-UC target; UC-00 is not listed among the critical UCs in `05_sy
 - `user_accounts` migration and `App\Models\UserAccount` authenticatable model. [derived from 04_data-model.md §2.1 + docs/conventions.md Auth]
 - String-backed role and account-state enum shape from project conventions. [derived from docs/conventions.md Data & schema]
 - Laravel Sanctum and `personal_access_tokens` table. [derived from docs/conventions.md Auth]
-- Bootstrap account provisioning (a user account exists for at least one person; self-service registration is out of v1) — see coordinator. [identity-and-access.md Build order & dependencies]
+- Bootstrap account provisioning: a seeded or manually created user account exists for at least one person; self-service registration is out of v1. [derived from 03_use-cases.md UC-00 notes + UC-01 preconditions]
 
 ## Notes
 Sign-in is a subfunction that user-goal use cases assume as a precondition. It documents authentication behavior for all registered roles and anchors rejection of inactive accounts. Registration and self-service account creation are out of v1; accounts are provisioned through UC-01. [03_use-cases.md UC-00]

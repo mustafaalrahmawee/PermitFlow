@@ -393,7 +393,7 @@ is missing or empty, stop and report `BLOCKED — <filename> not found`.
 
 > **Pipeline note.** `05_system-design.md` closes the upstream methodology
 > pipeline. From here, the **domain-doc-generator SKILL** reads the six
-> domain specs (`00` … `05`) plus the conventions (`docs/conventions/*`) and
-> generates the per-domain coordinator and per-UC contract files under
-> `docs/by-domain/*` and `docs/by-use-case/*`. This role is the last step that
+> domain specs (`00` … `05`) plus the conventions (`docs/conventions.md`) and
+> generates the self-contained per-UC contract files under
+> `docs/by-use-case/*`. This role is the last step that
 > may modify a `docs/domain/*` file directly.

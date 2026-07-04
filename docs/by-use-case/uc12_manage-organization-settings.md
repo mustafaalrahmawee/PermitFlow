@@ -63,7 +63,7 @@ No dedicated per-UC target; UC-12 is not listed among the critical UCs in `05_sy
 - `manage-settings` gate registered in `AppServiceProvider`. [derived from docs/conventions.md Authorization]
 - `organization_settings` migration/model, including the `updated_by_user_account_id` FK → `user_accounts.id`. [derived from 04_data-model.md §2.1]
 - A single-row (singleton) organization-settings record seeded with `singleton_key = single_organization`. [derived from 04_data-model.md §2.1]
-- A bootstrap administrator account (see coordinator). [administration.md Build order & dependencies]
+- A bootstrap administrator account exists (seeded or manually created; self-service registration is out of v1). [derived from 03_use-cases.md UC-01 preconditions + UC-00 notes]
 
 ## Notes
 The concrete settings are intentionally not expanded beyond the miniworld object; the payload is handled as one whole block. [03_use-cases.md UC-12] [04_data-model.md §3.1]
