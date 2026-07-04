@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import type { AuthUser } from "~/stores/auth";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-// Post-sign-in landing. Confirms the session against the `GET /api/user` seam and
-// shows the functions available for the account's single role (main flow step 5).
-// Fails closed on the client: no token, or a token the API rejects, returns to sign-in.
+// Post-sign-in dashboard. Confirms the session against the `GET /api/user` seam
+// and surfaces the functions available for the account's single role (main flow
+// step 5). Sign-out now lives in the app nav. Fails closed: no token, or a token
+// the API rejects, returns to sign-in.
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -31,65 +30,77 @@ const roleLabels: Record<AuthUser["role"], string> = {
   administrator: "Administrator",
 };
 
-// Functions surfaced per role, mirroring the role gates/abilities in
-// docs/conventions.md (Authorization). Presentational only — the API enforces access.
-const functionsByRole: Record<AuthUser["role"], string[]> = {
+interface AppFunction {
+  label: string;
+  description: string;
+  to?: string;
+}
+
+// Functions per role, mirroring the role gates/abilities in docs/conventions.md
+// (Authorization). A `to` marks a function whose page exists today; the rest are
+// listed but not yet linked. Presentational only — the API enforces access.
+const functionsByRole: Record<AuthUser["role"], AppFunction[]> = {
   citizen: [
-    "Submit and track your permit requests",
-    "Provide requested information",
-    "Message staff about your requests",
+    { label: "Submit and track requests", description: "Start a new permit request and follow its status." },
+    { label: "Provide information", description: "Respond when staff need more detail." },
+    { label: "Message staff", description: "Ask questions on an open request." },
   ],
   staff_member: [
-    "Review assigned requests",
-    "Record decisions",
-    "View reporting",
+    { label: "Review assigned requests", description: "Work through the requests assigned to you." },
+    { label: "Record decisions", description: "Approve or reject with a rationale." },
+    { label: "View reporting", description: "Track volumes, decisions, and turnaround." },
   ],
   administrator: [
-    "Assign requests to staff",
-    "Manage user accounts and roles",
-    "Manage request categories",
-    "Manage organization settings",
-    "View reporting",
+    { label: "Assign requests to staff", description: "Route incoming requests to reviewers." },
+    { label: "Manage user accounts and roles", description: "Create accounts and set roles and state.", to: "/admin/user-accounts" },
+    { label: "Manage request categories", description: "Define the permit types citizens can request." },
+    { label: "Manage organization settings", description: "Update the organization name and preferences." },
+    { label: "View reporting", description: "Track volumes, decisions, and turnaround." },
   ],
 };
 
-const availableFunctions = computed(() =>
-  auth.user ? functionsByRole[auth.user.role] : [],
-);
-
-async function onSignOut(): Promise<void> {
-  auth.logout();
-  await router.replace("/login");
-}
+const functions = computed(() => (auth.user ? functionsByRole[auth.user.role] : []));
 </script>
 
 <template>
-  <main class="mx-auto max-w-2xl px-6 py-12">
+  <main class="mx-auto max-w-5xl px-6 py-10">
     <p v-if="loading" class="text-sm text-muted-foreground">Loading your account…</p>
 
-    <Card v-else-if="auth.user">
-      <CardHeader class="flex flex-row items-start justify-between gap-4 space-y-0">
-        <div>
-          <CardTitle class="text-2xl">Welcome, {{ auth.user.display_name }}</CardTitle>
-          <p class="mt-1 text-sm text-muted-foreground">
-            Signed in as {{ roleLabels[auth.user.role] }} · {{ auth.user.email }}
-          </p>
-        </div>
-        <Button variant="outline" size="sm" @click="onSignOut">Sign out</Button>
-      </CardHeader>
+    <template v-else-if="auth.user">
+      <header class="mb-8">
+        <h1 class="text-3xl font-semibold tracking-tight">Welcome, {{ auth.user.display_name }}</h1>
+        <p class="mt-1 text-muted-foreground">
+          Signed in as {{ roleLabels[auth.user.role] }} · {{ auth.user.email }}
+        </p>
+      </header>
 
-      <CardContent>
-        <h2 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">Available functions</h2>
-        <ul class="mt-3 space-y-2">
-          <li
-            v-for="fn in availableFunctions"
-            :key="fn"
-            class="rounded-lg border px-4 py-3 text-sm"
-          >
-            {{ fn }}
-          </li>
-        </ul>
-      </CardContent>
-    </Card>
+      <h2 class="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Available functions
+      </h2>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <component
+          :is="fn.to ? 'NuxtLink' : 'div'"
+          v-for="fn in functions"
+          :key="fn.label"
+          :to="fn.to"
+          class="group flex flex-col rounded-xl border bg-card p-5 transition-colors"
+          :class="fn.to ? 'hover:border-foreground/20 hover:bg-accent/50' : 'opacity-70'"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="font-medium">{{ fn.label }}</h3>
+            <span
+              v-if="fn.to"
+              class="text-muted-foreground transition-transform group-hover:translate-x-0.5"
+            >&rarr;</span>
+            <span
+              v-else
+              class="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+            >Soon</span>
+          </div>
+          <p class="mt-1.5 text-sm text-muted-foreground">{{ fn.description }}</p>
+        </component>
+      </div>
+    </template>
   </main>
 </template>

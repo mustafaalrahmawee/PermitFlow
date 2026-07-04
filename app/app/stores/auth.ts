@@ -11,21 +11,30 @@ export interface AuthUser {
   account_state: "active" | "inactive";
 }
 
+/**
+ * One success envelope for every seam: `data` carries the payload, `message` a
+ * short summary. Errors omit `data` (`{ message, errors? }`)
+ * [docs/conventions.md API success responses].
+ */
 interface LoginResponse {
-  token: string;
-  token_type: string;
-  user: AuthUser;
+  data: {
+    token: string;
+    token_type: string;
+    user: AuthUser;
+  };
+  message: string;
 }
 
 interface MeResponse {
-  user: AuthUser;
+  data: AuthUser;
+  message: string;
 }
 
 /**
  * Sign-in state for UC-00. Holds the Sanctum bearer token and the current
  * account, and is the single caller of the auth API seam:
- *   - `POST /api/login`  (public)          → { token, token_type, user }
- *   - `GET  /api/user`   (auth:sanctum)    → { user }
+ *   - `POST /api/login`  (public)          → { data: { token, token_type, user }, message }
+ *   - `GET  /api/user`   (auth:sanctum)    → { data: user, message }
  * The token is kept in a cookie so it survives reloads (SSR-safe).
  */
 export const useAuthStore = defineStore("auth", () => {
@@ -47,8 +56,8 @@ export const useAuthStore = defineStore("auth", () => {
       body: { email, password },
     });
 
-    token.value = res.token;
-    user.value = res.user;
+    token.value = res.data.token;
+    user.value = res.data.user;
   }
 
   /** Load the current account for the stored token; used to show role-based functions. */
@@ -65,7 +74,7 @@ export const useAuthStore = defineStore("auth", () => {
       },
     });
 
-    user.value = res.user;
+    user.value = res.data;
   }
 
   /** Drop the local session (client-side sign-out). */

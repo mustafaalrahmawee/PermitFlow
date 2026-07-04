@@ -82,10 +82,34 @@ code that would contradict a spec is a conflict to report, not a free choice.
   session and the backend never relies on a browser session. Protected routes use
   `auth:sanctum`. Login uses `email` + the `password` column.
 
+## API success responses (one envelope)
+Every successful JSON response uses a single envelope so clients read one shape
+regardless of controller (implementation-only decision):
+- **`data`** — the payload: a resource object, a list of resources, or a
+  structured object for a composite result (e.g. login returns the token and the
+  account). `null` when there is no payload (e.g. logout).
+- **`message`** — a short human-readable summary of the outcome.
+
+The envelope keys are fixed; a resource is never returned under an ad-hoc key
+(no `user`, `user_account`, `user_accounts`). Success always carries `data`;
+errors never do (see below), so the two shapes never collide and a caller can
+tell them apart without inspecting the status code.
+
+**Paginated lists add a sibling `meta`, never a nested paginator.** A list seam
+paginates server-side (`paginate()`, fixed page size, `page` read from the
+`?page=` query parameter) and returns the rows as the `data` array plus a
+`meta` cursor: `current_page`, `last_page`, `per_page`, `total`. The raw Laravel
+paginator is never placed under `data` (which would nest `data.data` and leak
+the framework's `links` shape); `data` stays the flat array of resources and the
+cursor rides alongside in `meta`. Page size is a fixed constant, not a
+client-tunable parameter (secondary/performance tuning is a v1 non-goal).
+
 ## API error responses (fail closed)
 Concrete HTTP status codes for denied or failed API actions, so per-use-case QA
 maps translate acceptance items into requests and DB checks without inventing
-codes. Standard REST mapping; errors deny rather than leak.
+codes. Standard REST mapping; errors deny rather than leak. Errors use Laravel's
+native error envelope — `{ message }`, plus `{ errors }` (field → messages) on a
+422 — and never include a `data` key.
 - **401 Unauthorized** — authentication denial: credentials do not match a known
   account, or an inactive account attempts sign-in or a protected route. The
   login response does not reveal which part failed, nor that an account exists
@@ -126,6 +150,23 @@ codes. Standard REST mapping; errors deny rather than leak.
   to the global middleware's allowlist, and the page is given the guest layout
   plus the guest middleware (which bounces an already-authenticated session away
   from the form). Omitting either is the routing bug to avoid.
+
+## Frontend data access (API client, stores, types)
+- **One global API client.** A single Nuxt plugin (`app/app/plugins/api.ts`)
+  configures `$fetch` to default the API base URL from runtime config and attach
+  the Sanctum bearer token from the auth store. Callers pass only a path; no
+  per-call base URL or `Authorization` header, and no fetch-wrapping composable
+  (implementation-only decision).
+- **Fetching lives in Pinia stores, not in pages.** Each domain has a setup-style
+  Pinia store that owns its API calls and the resulting state. Pages are
+  presentational: they call store actions and read store state (via
+  `storeToRefs`), and never call `$fetch` directly.
+- **Mutations patch local state in place.** After a create or update, the store
+  updates its own collection — append the created record, replace the changed one
+  by id — rather than refetching the whole list.
+- **Types are declared first in `app/app/types`.** Domain interfaces and select
+  option maps (enum slug→label) live there and are imported where needed; stores
+  and pages depend on them instead of redefining shapes inline.
 
 ## Implementation-only decisions (beyond the conceptual data model)
 - `user_accounts.password` (varchar) and `user_accounts.remember_token` (varchar,

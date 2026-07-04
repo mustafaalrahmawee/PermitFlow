@@ -47,6 +47,8 @@ class AuthController extends Controller
             || ! Hash::check($credentials['password'], (string) $account->password)
             || ! $account->isActive()
         ) {
+            // Error envelope: `message` only, never `data`, so success and failure
+            // stay distinguishable [docs/conventions.md API success responses].
             return response()->json([
                 'message' => 'The provided credentials are incorrect.',
             ], 401);
@@ -54,10 +56,15 @@ class AuthController extends Controller
 
         $token = $account->createToken('api')->plainTextToken;
 
+        // Success envelope: `data` carries the payload, `message` a short summary
+        // [docs/conventions.md API success responses].
         return response()->json([
-            'token' => $token,
-            'token_type' => 'Bearer',
-            'user' => $account,
+            'data' => [
+                'token' => $token,
+                'token_type' => 'Bearer',
+                'user' => $account,
+            ],
+            'message' => 'Signed in.',
         ]);
     }
 
@@ -67,7 +74,8 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return response()->json([
-            'user' => $request->user(),
+            'data' => $request->user(),
+            'message' => 'Authenticated account retrieved.',
         ]);
     }
 
@@ -78,6 +86,9 @@ class AuthController extends Controller
     {
         $request->user()->currentAccessToken()->delete();
 
-        return response()->json(['message' => 'Logged out.']);
+        return response()->json([
+            'data' => null,
+            'message' => 'Logged out.',
+        ]);
     }
 }

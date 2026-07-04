@@ -1,33 +1,24 @@
 <script setup lang="ts">
-import type { Component } from "vue";
+// Authenticated app shell: a sticky top nav over the page content. The account
+// is loaded here (once, when a token exists but the user isn't cached yet) so
+// the nav can show it on any entry point; page-level guards still handle a
+// token the API rejects.
+const auth = useAuthStore();
 
-interface NavItem {
-  title: string;
-  route: string;
-  icon: Component;
-}
-
-// Bottom navigation for authenticated areas. Icons are lucide-vue component
-// references (not name strings) because nuxt-lucide-icons registers each icon
-// as its own auto-imported component rather than one generic <Icon> component.
-const navItems: NavItem[] = [];
+onMounted(async () => {
+  if (auth.token && !auth.user) {
+    try {
+      await auth.fetchUser();
+    } catch {
+      // A rejected token is handled by the page/route guards, not the shell.
+    }
+  }
+});
 </script>
 
 <template>
-  <div class="h-screen pt-20 mx-4">
+  <div class="min-h-screen bg-background text-foreground">
+    <AppNav />
     <slot />
   </div>
-  <footer class="fixed bottom-0 w-full bg-gray-100 py-4">
-    <div class="flex justify-around py-2">
-      <NuxtLink
-        v-for="(item, index) in navItems"
-        :key="index"
-        :to="item.route"
-        class="flex flex-col items-center text-gray-600 hover:text-cyan-500"
-      >
-        <component :is="item.icon" class="text-xl" />
-        <span>{{ item.title }}</span>
-      </NuxtLink>
-    </div>
-  </footer>
 </template>
