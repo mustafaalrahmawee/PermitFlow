@@ -338,7 +338,7 @@ unambiguous.
 
 Reporting still applies request-scope limits at query time: staff reporting summarizes only records within the staff member's authorized scope; administrator reporting uses the administrator oversight scope `[BR-015, BR-016; UC-13, UC-14]`.
 
-**Policy registration.** Register policies for `Request`, `Document`, `Message`, `Decision`, `RequestHistoryEntry`, and `Notification`, and register the role gates in the auth service provider. Policy and gate registration must not introduce a global administrator bypass.
+**Policy registration.** Register policies for `Request`, `Document`, `Message`, `Decision`, `RequestHistoryEntry`, and `Notification`, and register the role gates in `AppServiceProvider`. Policy and gate registration must not introduce a global administrator bypass.
 
 **Bearer-token smoke test.** The §7 smoke test proves all of the following:
 
@@ -351,8 +351,8 @@ Reporting still applies request-scope limits at query time: staff reporting summ
 ### 5.6 Status guard
 
 Emit the request status guard from the §4 guard structure as two artifacts:
-`app/Exceptions/IllegalRequestStatusTransition.php` and
-`app/Models/Concerns/HasRequestStatusTransitions.php`.
+`app/Exceptions/IllegalStatusTransitionException.php` and
+`app/Concerns/TransitionsRequestStatus.php`.
 
 The exception carries the from-status and to-status as `RequestStatus` enum values
 (nullable where needed for error reporting). The trait, used by the `Request`
@@ -443,7 +443,7 @@ exists, extend it safely rather than overwrite unrelated developer changes (§10
 
 ### 5.10 Project conventions file
 
-Write `docs/implementation/conventions.md` — the implementation memory later
+Write `docs/conventions.md` — the implementation memory later
 per-domain and per-use-case sessions treat as binding unless an upstream spec is
 intentionally changed first. Each item carries either a `docs/domain/*` source
 reference or the label `implementation-only convention`:
