@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\OrganizationSettingsController;
 use App\Http\Controllers\Admin\RequestCategoryController;
 use App\Http\Controllers\Admin\UserAccountController;
 use App\Http\Controllers\Auth\AuthController;
@@ -47,5 +48,19 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/request-categories/{requestCategory}', [RequestCategoryController::class, 'show']);
             Route::patch('/request-categories/{requestCategory}', [RequestCategoryController::class, 'update']);
             Route::delete('/request-categories/{requestCategory}', [RequestCategoryController::class, 'destroy']);
+        });
+
+    /*
+     * UC-12 — administrator maintenance of the single organization-settings
+     * record. The `manage-settings` gate is administrator-only and fails closed
+     * for inactive or non-admin actors (403) [BR-014; docs/conventions.md
+     * Authorization]. The record is a seeded singleton, so the seam is a GET/PUT
+     * pair with no id, store, or destroy.
+     */
+    Route::middleware('can:manage-settings')
+        ->prefix('admin')
+        ->group(function () {
+            Route::get('/organization-settings', [OrganizationSettingsController::class, 'show']);
+            Route::put('/organization-settings', [OrganizationSettingsController::class, 'update']);
         });
 });

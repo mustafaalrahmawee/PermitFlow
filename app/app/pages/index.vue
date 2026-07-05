@@ -86,6 +86,7 @@ const functionsByRole: Record<AuthUser["role"], AppFunction[]> = {
     {
       label: "Manage organization settings",
       description: "Update the organization name and preferences.",
+      to: "/admin/organization-settings",
     },
     {
       label: "View reporting",
