@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\RequestCategoryController;
 use App\Http\Controllers\Admin\UserAccountController;
 use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Support\Facades\Route;
@@ -30,5 +31,21 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/user-accounts', [UserAccountController::class, 'store']);
             Route::get('/user-accounts/{userAccount}', [UserAccountController::class, 'show']);
             Route::patch('/user-accounts/{userAccount}', [UserAccountController::class, 'update']);
+        });
+
+    /*
+     * UC-11 — administrator maintenance of request categories. The
+     * `manage-categories` gate is administrator-only and fails closed for
+     * inactive or non-admin actors (403) [BR-012; docs/conventions.md
+     * Authorization].
+     */
+    Route::middleware('can:manage-categories')
+        ->prefix('admin')
+        ->group(function () {
+            Route::get('/request-categories', [RequestCategoryController::class, 'index']);
+            Route::post('/request-categories', [RequestCategoryController::class, 'store']);
+            Route::get('/request-categories/{requestCategory}', [RequestCategoryController::class, 'show']);
+            Route::patch('/request-categories/{requestCategory}', [RequestCategoryController::class, 'update']);
+            Route::delete('/request-categories/{requestCategory}', [RequestCategoryController::class, 'destroy']);
         });
 });

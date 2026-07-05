@@ -41,40 +41,83 @@ interface AppFunction {
 // listed but not yet linked. Presentational only — the API enforces access.
 const functionsByRole: Record<AuthUser["role"], AppFunction[]> = {
   citizen: [
-    { label: "Submit and track requests", description: "Start a new permit request and follow its status." },
-    { label: "Provide information", description: "Respond when staff need more detail." },
-    { label: "Message staff", description: "Ask questions on an open request." },
+    {
+      label: "Submit and track requests",
+      description: "Start a new permit request and follow its status.",
+    },
+    {
+      label: "Provide information",
+      description: "Respond when staff need more detail.",
+    },
+    {
+      label: "Message staff",
+      description: "Ask questions on an open request.",
+    },
   ],
   staff_member: [
-    { label: "Review assigned requests", description: "Work through the requests assigned to you." },
-    { label: "Record decisions", description: "Approve or reject with a rationale." },
-    { label: "View reporting", description: "Track volumes, decisions, and turnaround." },
+    {
+      label: "Review assigned requests",
+      description: "Work through the requests assigned to you.",
+    },
+    {
+      label: "Record decisions",
+      description: "Approve or reject with a rationale.",
+    },
+    {
+      label: "View reporting",
+      description: "Track volumes, decisions, and turnaround.",
+    },
   ],
   administrator: [
-    { label: "Assign requests to staff", description: "Route incoming requests to reviewers." },
-    { label: "Manage user accounts and roles", description: "Create accounts and set roles and state.", to: "/admin/user-accounts" },
-    { label: "Manage request categories", description: "Define the permit types citizens can request." },
-    { label: "Manage organization settings", description: "Update the organization name and preferences." },
-    { label: "View reporting", description: "Track volumes, decisions, and turnaround." },
+    {
+      label: "Assign requests to staff",
+      description: "Route incoming requests to reviewers.",
+    },
+    {
+      label: "Manage user accounts and roles",
+      description: "Create accounts and set roles and state.",
+      to: "/admin/user-accounts",
+    },
+    {
+      label: "Manage request categories",
+      description: "Define the permit types citizens can request.",
+      to: "/admin/request-categories",
+    },
+    {
+      label: "Manage organization settings",
+      description: "Update the organization name and preferences.",
+    },
+    {
+      label: "View reporting",
+      description: "Track volumes, decisions, and turnaround.",
+    },
   ],
 };
 
-const functions = computed(() => (auth.user ? functionsByRole[auth.user.role] : []));
+const functions = computed(() =>
+  auth.user ? functionsByRole[auth.user.role] : [],
+);
 </script>
 
 <template>
   <main class="mx-auto max-w-5xl px-6 py-10">
-    <p v-if="loading" class="text-sm text-muted-foreground">Loading your account…</p>
+    <p v-if="loading" class="text-sm text-muted-foreground">
+      Loading your account…
+    </p>
 
     <template v-else-if="auth.user">
       <header class="mb-8">
-        <h1 class="text-3xl font-semibold tracking-tight">Welcome, {{ auth.user.display_name }}</h1>
+        <h1 class="text-3xl font-semibold tracking-tight">
+          Welcome, {{ auth.user.display_name }}
+        </h1>
         <p class="mt-1 text-muted-foreground">
           Signed in as {{ roleLabels[auth.user.role] }} · {{ auth.user.email }}
         </p>
       </header>
 
-      <h2 class="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <h2
+        class="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground"
+      >
         Available functions
       </h2>
 
@@ -85,20 +128,37 @@ const functions = computed(() => (auth.user ? functionsByRole[auth.user.role] : 
           :key="fn.label"
           :to="fn.to"
           class="group flex flex-col rounded-xl border bg-card p-5 transition-colors"
-          :class="fn.to ? 'hover:border-foreground/20 hover:bg-accent/50' : 'opacity-70'"
+          :class="
+            fn.to
+              ? 'hover:border-foreground/20 hover:bg-accent/50'
+              : 'opacity-70'
+          "
         >
-          <div class="flex items-center justify-between gap-3">
-            <h3 class="font-medium">{{ fn.label }}</h3>
-            <span
-              v-if="fn.to"
-              class="text-muted-foreground transition-transform group-hover:translate-x-0.5"
-            >&rarr;</span>
-            <span
-              v-else
-              class="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-            >Soon</span>
+          <NuxtLink v-if="fn.to" :to="fn.to">
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="font-medium">{{ fn.label }}</h3>
+              <span
+                v-if="fn.to"
+                class="text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                >&rarr;</span
+              >
+            </div>
+            <p class="mt-1.5 text-sm text-muted-foreground">
+              {{ fn.description }}
+            </p>
+          </NuxtLink>
+          <div v-else>
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="font-medium">{{ fn.label }}</h3>
+              <span
+                class="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                >Soon</span
+              >
+            </div>
+            <p class="mt-1.5 text-sm text-muted-foreground">
+              {{ fn.description }}
+            </p>
           </div>
-          <p class="mt-1.5 text-sm text-muted-foreground">{{ fn.description }}</p>
         </component>
       </div>
     </template>

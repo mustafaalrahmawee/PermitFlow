@@ -21,6 +21,7 @@ interface NavLink {
 const allLinks: NavLink[] = [
   { label: "Home", to: "/" },
   { label: "User accounts", to: "/admin/user-accounts", roles: ["administrator"] },
+  { label: "Request categories", to: "/admin/request-categories", roles: ["administrator"] },
 ];
 
 const links = computed(() =>
