@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Controllers\Admin\OrganizationSettingsController;
-use App\Http\Controllers\Admin\RequestCategoryController;
+use App\Http\Controllers\Admin\RequestCategoryController as AdminRequestCategoryController;
 use App\Http\Controllers\Admin\UserAccountController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\RequestCategoryController;
+use App\Http\Controllers\RequestController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -43,11 +46,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:manage-categories')
         ->prefix('admin')
         ->group(function () {
-            Route::get('/request-categories', [RequestCategoryController::class, 'index']);
-            Route::post('/request-categories', [RequestCategoryController::class, 'store']);
-            Route::get('/request-categories/{requestCategory}', [RequestCategoryController::class, 'show']);
-            Route::patch('/request-categories/{requestCategory}', [RequestCategoryController::class, 'update']);
-            Route::delete('/request-categories/{requestCategory}', [RequestCategoryController::class, 'destroy']);
+            Route::get('/request-categories', [AdminRequestCategoryController::class, 'index']);
+            Route::post('/request-categories', [AdminRequestCategoryController::class, 'store']);
+            Route::get('/request-categories/{requestCategory}', [AdminRequestCategoryController::class, 'show']);
+            Route::patch('/request-categories/{requestCategory}', [AdminRequestCategoryController::class, 'update']);
+            Route::delete('/request-categories/{requestCategory}', [AdminRequestCategoryController::class, 'destroy']);
         });
 
     /*
@@ -63,4 +66,18 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/organization-settings', [OrganizationSettingsController::class, 'show']);
             Route::put('/organization-settings', [OrganizationSettingsController::class, 'update']);
         });
+
+    /*
+     * UC-02 — a citizen files and submits a permit request. Category selection is
+     * a plain authenticated read of active categories; request filing, editing,
+     * document attachment, and submission are request-scoped (owner) with
+     * ownership and status enforced by policies in the controllers. An
+     * out-of-scope record reads as 404, not 403 [BR-016; docs/conventions.md
+     * Authorization].
+     */
+    Route::get('/request-categories', [RequestCategoryController::class, 'index']);
+    Route::post('/requests', [RequestController::class, 'store']);
+    Route::patch('/requests/{request}', [RequestController::class, 'update']);
+    Route::post('/requests/{request}/documents', [DocumentController::class, 'store']);
+    Route::post('/requests/{request}/submit', [RequestController::class, 'submit']);
 });

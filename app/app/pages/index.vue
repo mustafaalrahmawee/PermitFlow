@@ -44,6 +44,7 @@ const functionsByRole: Record<AuthUser["role"], AppFunction[]> = {
     {
       label: "Submit and track requests",
       description: "Start a new permit request and follow its status.",
+      to: "/requests/new",
     },
     {
       label: "Provide information",

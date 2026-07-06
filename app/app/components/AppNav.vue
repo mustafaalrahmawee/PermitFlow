@@ -20,6 +20,7 @@ interface NavLink {
 
 const allLinks: NavLink[] = [
   { label: "Home", to: "/" },
+  { label: "New request", to: "/requests/new", roles: ["citizen"] },
   { label: "User accounts", to: "/admin/user-accounts", roles: ["administrator"] },
   { label: "Request categories", to: "/admin/request-categories", roles: ["administrator"] },
   { label: "Organization settings", to: "/admin/organization-settings", roles: ["administrator"] },
