@@ -76,6 +76,16 @@ Route::middleware('auth:sanctum')->group(function () {
      * Authorization].
      */
     Route::get('/request-categories', [RequestCategoryController::class, 'index']);
+
+    /*
+     * UC-03 — a citizen tracks the progress of their own requests. Both reads are
+     * request-scoped (owner): the list returns only requests the caller owns, and
+     * an out-of-scope detail read is reported as 404, not 403, so existence is not
+     * revealed [03_use-cases.md UC-03; BR-016; docs/conventions.md Authorization].
+     */
+    Route::get('/requests', [RequestController::class, 'index']);
+    Route::get('/requests/{request}', [RequestController::class, 'show']);
+
     Route::post('/requests', [RequestController::class, 'store']);
     Route::patch('/requests/{request}', [RequestController::class, 'update']);
     Route::post('/requests/{request}/documents', [DocumentController::class, 'store']);

@@ -13,6 +13,7 @@ use App\Models\Notification;
 use App\Models\Request;
 use App\Models\RequestHistoryEntry;
 use App\Models\UserAccount;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +34,78 @@ use Throwable;
  */
 class RequestController extends Controller
 {
+    /**
+     * Fixed page size for the citizen's request list; secondary/performance
+     * tuning is a v1 non-goal, so this is a constant, not a client parameter
+     * [docs/conventions.md API success responses].
+     */
+    private const PER_PAGE = 15;
+
+    /**
+     * List the requests the calling citizen owns (UC-03 steps 1–2), paginated.
+     *
+     * The list is strictly owner-scoped: only rows whose `owner_user_account_id`
+     * is the caller's account are returned, so a citizen never sees another
+     * person's request. A citizen owning nothing gets an empty `data` array with
+     * a `meta.total` of 0 (ext 2a); `data` stays the flat array of requests and
+     * the page cursor rides alongside in `meta`, never nested under `data`
+     * [03_use-cases.md UC-03 steps 1–2; BR-016; docs/conventions.md API success
+     * responses].
+     */
+    public function index(HttpRequest $httpRequest): JsonResponse
+    {
+        $requests = Request::query()
+            ->where('owner_user_account_id', $httpRequest->user()->id)
+            ->with('category')
+            ->orderByDesc('id')
+            ->paginate(self::PER_PAGE);
+
+        return response()->json([
+            'data' => $requests->items(),
+            'meta' => [
+                'current_page' => $requests->currentPage(),
+                'last_page' => $requests->lastPage(),
+                'per_page' => $requests->perPage(),
+                'total' => $requests->total(),
+            ],
+            'message' => 'Requests retrieved.',
+        ]);
+    }
+
+    /**
+     * Show one request's current status and understandable history (UC-03
+     * steps 3–6). Reach is request-scoped: a record outside the caller's scope
+     * reads as not found (404, ext 3a) rather than forbidden, so existence is
+     * not revealed.
+     *
+     * The detail carries the current `status` (its slug, e.g.
+     * `waiting_for_citizen` while a response is pending — ext 6a), `submitted_at`,
+     * the `category`, `request_details`, and the connected collections the
+     * citizen reviews in steps 5–6: history entries ordered by `sequence_number`
+     * (each with its frozen `summary` — ext 5a), messages, documents, and the
+     * decision where one exists [03_use-cases.md UC-03 steps 3–6;
+     * 04_data-model.md §2.1; BR-016, BR-017].
+     */
+    public function show(HttpRequest $httpRequest, Request $request): JsonResponse
+    {
+        $this->ensureInScope($httpRequest->user(), $request);
+
+        $request->load([
+            'category',
+            'historyEntries' => function (HasMany $query): void {
+                $query->orderBy('sequence_number');
+            },
+            'messages',
+            'documents',
+            'decision',
+        ]);
+
+        return response()->json([
+            'data' => $request,
+            'message' => 'Request retrieved.',
+        ]);
+    }
+
     /**
      * Create a request as a Draft owned by the caller (steps 1–4). The active
      * category and shape are validated by the form request; success is 201 with
