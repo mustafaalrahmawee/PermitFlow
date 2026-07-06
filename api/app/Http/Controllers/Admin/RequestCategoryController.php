@@ -74,7 +74,7 @@ class RequestCategoryController extends Controller
     public function store(StoreRequestCategoryRequest $request): JsonResponse
     {
         $category = DB::transaction(
-            fn () => RequestCategory::create($request->validated())
+            fn (): RequestCategory => RequestCategory::create($request->validated())
         );
 
         return response()->json([

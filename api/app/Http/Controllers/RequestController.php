@@ -75,11 +75,13 @@ class RequestController extends Controller
 
         $validated = $updateRequest->validated();
 
-        DB::transaction(fn () => $request->update([
-            'request_category_id' => $validated['request_category_id'],
-            'title' => $validated['title'],
-            'request_details' => $validated['request_details'],
-        ]));
+        DB::transaction(function () use ($request, $validated): void {
+            $request->update([
+                'request_category_id' => $validated['request_category_id'],
+                'title' => $validated['title'],
+                'request_details' => $validated['request_details'],
+            ]);
+        });
 
         return response()->json([
             'data' => $request->fresh(),

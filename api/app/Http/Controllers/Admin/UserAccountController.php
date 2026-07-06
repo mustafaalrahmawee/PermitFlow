@@ -75,7 +75,7 @@ class UserAccountController extends Controller
     public function store(StoreUserAccountRequest $request): JsonResponse
     {
         $account = DB::transaction(
-            fn () => UserAccount::create($request->validated())
+            fn (): UserAccount => UserAccount::create($request->validated())
         );
 
         return response()->json([
