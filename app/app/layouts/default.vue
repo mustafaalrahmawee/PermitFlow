@@ -18,7 +18,11 @@ onMounted(async () => {
 
 <template>
   <div class="min-h-screen bg-background text-foreground">
-    <AppNav />
-    <slot />
+    <AppSidebar />
+    <!-- Content sits to the right of the fixed sidebar on desktop; on mobile the
+         sidebar is an overlay drawer, so no left offset is applied. -->
+    <div class="lg:pl-64">
+      <slot />
+    </div>
   </div>
 </template>

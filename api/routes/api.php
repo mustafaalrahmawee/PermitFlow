@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\OrganizationSettingsController;
+use App\Http\Controllers\Admin\RequestAssignmentController;
 use App\Http\Controllers\Admin\RequestCategoryController as AdminRequestCategoryController;
 use App\Http\Controllers\Admin\UserAccountController;
 use App\Http\Controllers\Auth\AuthController;
@@ -90,4 +91,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/requests/{request}', [RequestController::class, 'update']);
     Route::post('/requests/{request}/documents', [DocumentController::class, 'store']);
     Route::post('/requests/{request}/submit', [RequestController::class, 'submit']);
+
+    /*
+     * UC-05 — administrator assigns or reassigns a submitted/active request to a
+     * responsible staff member. All three seams are administrator-only through the
+     * `assign-requests` gate, which fails closed for inactive or non-admin actors
+     * (403, ext 5a) [BR-010; docs/conventions.md Authorization]. The worklist and
+     * assignable-staff reads live under the `admin` prefix; the assignment write
+     * targets a specific request by id.
+     */
+    Route::middleware('can:assign-requests')->group(function () {
+        Route::get('/admin/requests', [RequestAssignmentController::class, 'index']);
+        Route::get('/admin/assignable-staff', [RequestAssignmentController::class, 'assignableStaff']);
+        Route::put('/requests/{request}/assignment', [RequestAssignmentController::class, 'update']);
+    });
 });
