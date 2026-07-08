@@ -112,6 +112,108 @@ async function onRequestInformation(): Promise<void> {
   }
 }
 
+// UC-04 — the owning citizen provides the requested information only while the
+// request is Waiting for Citizen; sending a response records a citizen_reply
+// message and moves the request back to In Review, and supporting documents can
+// be attached first through the shared attach seam.
+const canProvideInformation = computed(
+  () =>
+    Boolean(current.value) &&
+    user.value?.role === "citizen" &&
+    current.value?.owner_user_account_id === user.value?.id &&
+    current.value?.status === "waiting_for_citizen",
+);
+
+// Attach a supporting document (optional, repeatable) — the shared UC-02 attach
+// seam. A rejected file (422, ext 3a) or a store fault (500, ext 3b) surfaces
+// here and leaves the existing request content unchanged.
+const supportingFile = ref<File | null>(null);
+const supportingDescription = ref("");
+const attaching = ref(false);
+const attachError = ref<string | null>(null);
+const attachFieldError = ref<string | null>(null);
+
+function onSupportingFileChange(event: Event): void {
+  const target = event.target as HTMLInputElement;
+  supportingFile.value = target.files?.[0] ?? null;
+}
+
+async function onAttachDocument(): Promise<void> {
+  if (!current.value || !supportingFile.value) {
+    return;
+  }
+  attaching.value = true;
+  attachError.value = null;
+  attachFieldError.value = null;
+  try {
+    await store.attachDocument(
+      current.value.id,
+      supportingFile.value,
+      supportingDescription.value || undefined,
+    );
+    supportingFile.value = null;
+    supportingDescription.value = "";
+    toast("Document attached.");
+  } catch (error: unknown) {
+    const status = (error as { statusCode?: number }).statusCode;
+    const data = (error as { data?: { errors?: { file?: string[] } } }).data;
+    if (status === 422) {
+      // ext 3a — a file that is not a usable supporting document is rejected inline.
+      attachFieldError.value =
+        data?.errors?.file?.[0] ?? "That file could not be attached.";
+    } else {
+      // ext 3b — a store fault rejects the document; the request content is unchanged.
+      attachError.value =
+        status === 403
+          ? "You are not allowed to attach documents to this request."
+          : status === 404
+            ? "This request is no longer available to you."
+            : "The document could not be attached. Please try again.";
+    }
+  } finally {
+    attaching.value = false;
+  }
+}
+
+// Send the written response; on success the request moves back to In Review.
+const provideBody = ref("");
+const providing = ref(false);
+const provideError = ref<string | null>(null);
+const provideFieldError = ref<string | null>(null);
+
+async function onProvideInformation(): Promise<void> {
+  if (!current.value) {
+    return;
+  }
+  providing.value = true;
+  provideError.value = null;
+  provideFieldError.value = null;
+  try {
+    await store.provideInformation(current.value.id, provideBody.value);
+    provideBody.value = "";
+    toast("Your response was sent.");
+  } catch (error: unknown) {
+    const status = (error as { statusCode?: number }).statusCode;
+    const data = (error as { data?: { errors?: { body?: string[] } } }).data;
+    if (status === 422) {
+      // An empty response carries no information; ask for a written reply.
+      provideFieldError.value =
+        data?.errors?.body?.[0] ?? "Please write a response before sending.";
+    } else {
+      provideError.value =
+        status === 409
+          ? "This request can no longer accept a response."
+          : status === 403
+            ? "You are not allowed to provide information on this request."
+            : status === 404
+              ? "This request is no longer available to you."
+              : "Could not send your response. Please try again.";
+    }
+  } finally {
+    providing.value = false;
+  }
+}
+
 // UC-08 — the responsible staff member moves the review forward. The
 // characteristic staff-driven move through this seam is In Review → Ready for
 // Decision, offered here while the request is In Review.
@@ -301,6 +403,80 @@ onMounted(async () => {
           </span>
         </div>
       </header>
+
+      <!-- UC-04 — the owning citizen provides the requested information while the
+           request is Waiting for Citizen. Supporting documents attach first
+           through the shared attach seam (a rejected file is a 422, a store fault
+           a 500, ext 3a/3b — either leaves the request content unchanged), then
+           the written response is sent, recording a citizen_reply message and
+           moving the request back to In Review. An empty response is rejected
+           inline (422); cancelling by not sending leaves the request and its
+           documents unchanged (ext 5a). -->
+      <Card v-if="canProvideInformation" class="mb-6">
+        <CardHeader>
+          <CardTitle class="text-base">Provide the requested information</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-6">
+          <p class="text-sm text-muted-foreground">
+            A staff member asked for more information. Attach any supporting
+            documents, then send your response — this returns the request to review.
+          </p>
+
+          <form class="space-y-3" @submit.prevent="onAttachDocument">
+            <div class="space-y-1.5">
+              <Label for="supporting-file">Attach a supporting document (optional)</Label>
+              <input
+                id="supporting-file"
+                type="file"
+                :aria-invalid="Boolean(attachFieldError)"
+                class="border-input file:text-foreground w-full rounded-md border bg-transparent px-3 py-1.5 text-sm shadow-xs file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+                @change="onSupportingFileChange"
+              />
+              <p v-if="attachFieldError" class="text-sm text-destructive">
+                {{ attachFieldError }}
+              </p>
+            </div>
+            <div v-if="supportingFile" class="space-y-1.5">
+              <Label for="supporting-description">Document description (optional)</Label>
+              <Input
+                id="supporting-description"
+                v-model="supportingDescription"
+                placeholder="What this document contains…"
+              />
+            </div>
+            <p v-if="attachError" class="text-sm text-destructive">{{ attachError }}</p>
+            <Button
+              v-if="supportingFile"
+              type="submit"
+              variant="outline"
+              :disabled="attaching"
+            >
+              {{ attaching ? "Attaching…" : "Attach document" }}
+            </Button>
+          </form>
+
+          <form class="space-y-3" @submit.prevent="onProvideInformation">
+            <div class="space-y-1.5">
+              <Label for="provide-body">Your response</Label>
+              <textarea
+                id="provide-body"
+                v-model="provideBody"
+                rows="4"
+                :aria-invalid="Boolean(provideFieldError)"
+                class="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="Answer the staff member's request…"
+              />
+              <p v-if="provideFieldError" class="text-sm text-destructive">
+                {{ provideFieldError }}
+              </p>
+            </div>
+            <p v-if="provideError" class="text-sm text-destructive">{{ provideError }}</p>
+            <Button type="submit" :disabled="providing">
+              {{ providing ? "Sending…" : "Send response" }}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <!-- UC-06 step 5 — the responsible staff member starts the review of a
            Submitted request; the status then moves to In Review and a history

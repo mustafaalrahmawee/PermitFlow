@@ -8,6 +8,7 @@ use App\Enums\MessageKind;
 use App\Enums\NotificationType;
 use App\Enums\RequestStatus;
 use App\Enums\Role;
+use App\Http\Requests\ProvideInformationRequest;
 use App\Http\Requests\RequestMissingInformationRequest;
 use App\Http\Requests\StoreRequestRequest;
 use App\Http\Requests\UpdateRequestRequest;
@@ -378,6 +379,89 @@ class RequestController extends Controller
     }
 
     /**
+     * A citizen provides the requested information on a Waiting for Citizen
+     * request (UC-04 steps 5–10). Out-of-scope records read as not found (404,
+     * ext 1a); only the owning citizen while the request is Draft or Waiting for
+     * Citizen may act (`provideInformation`, 403 otherwise — a request already
+     * submitted with no open information request blocks free input, ext 2a), and
+     * the reply's participant relationship is guarded by `MessagePolicy@create`.
+     *
+     * The durable-write path is atomic: the guarded Waiting for Citizen → In
+     * Review transition, the recorded `citizen_reply` message to the responsible
+     * staff member, and the linked `information_provided` history entry are saved
+     * in one transaction, so the response is never completed as a returned review
+     * item without its trace (ext 7a). The transition runs first: from Draft it is
+     * an illegal move (draft has no path to In Review), a blocked transition — a
+     * 409 — so a reply to an unanswered draft never records an orphan message, and
+     * only a Waiting for Citizen request reaches In Review (where the responsible
+     * staff recipient is always set). A persistence fault rolls back to Waiting for
+     * Citizen with no message or history row (500, ext 7a). The staff notification
+     * is best-effort and runs after the commit: a notification fault leaves the
+     * information stored and visible inside the request (ext 10a) [03_use-cases.md
+     * UC-04; BR-004, BR-005, BR-011, BR-016, BR-017; docs/conventions.md
+     * Authorization, Status transitions].
+     */
+    public function provideInformation(ProvideInformationRequest $formRequest, Request $request): JsonResponse
+    {
+        $actor = $formRequest->user();
+
+        $this->ensureInScope($actor, $request);
+        abort_if(
+            Gate::forUser($actor)->denies('provideInformation', $request),
+            403,
+            'You are not allowed to provide information on this request.',
+        );
+        abort_if(
+            Gate::forUser($actor)->denies('create', [Message::class, $request]),
+            403,
+            'You are not allowed to message on this request.',
+        );
+
+        $body = $formRequest->validated()['body'];
+        $fromStatus = $request->status;
+
+        $historyEntry = DB::transaction(function () use ($request, $actor, $fromStatus, $body): RequestHistoryEntry {
+            // Guarded transition first — sets the status in memory, raising
+            // IllegalStatusTransitionException (rendered 409) on an illegal target.
+            // Draft has no path to In Review, so only a Waiting for Citizen request
+            // proceeds, where the responsible staff recipient is guaranteed set.
+            $request->transitionTo(RequestStatus::InReview);
+            $request->save();
+
+            // Record the citizen's reply; sender is the owning citizen, recipient
+            // the responsible staff member (BR-011).
+            $message = Message::create([
+                'request_id' => $request->id,
+                'sender_user_account_id' => $actor->id,
+                'recipient_user_account_id' => $request->responsible_staff_user_account_id,
+                'message_kind' => MessageKind::CitizenReply,
+                'body' => $body,
+                'sent_at' => now(),
+            ]);
+
+            $sequence = (int) $request->historyEntries()->max('sequence_number') + 1;
+
+            return $request->historyEntries()->create([
+                'sequence_number' => $sequence,
+                'actor_user_account_id' => $actor->id,
+                'message_id' => $message->id,
+                'event_type' => HistoryEventType::InformationProvided,
+                'from_status' => $fromStatus,
+                'to_status' => RequestStatus::InReview,
+                'summary' => 'Citizen provided the requested information.',
+                'event_occurred_at' => now(),
+            ]);
+        });
+
+        $this->notifyStaffOfInformationProvided($request, $historyEntry);
+
+        return response()->json([
+            'data' => $request->fresh(),
+            'message' => 'Information provided.',
+        ]);
+    }
+
+    /**
      * Move an assigned request to the next status (UC-08 main flow). Out-of-scope
      * records read as not found (404, ext 1a); only the responsible staff member
      * may act (`review`, 403 otherwise — an in-scope owner or administrator lacks
@@ -489,6 +573,28 @@ class RequestController extends Controller
                 'request_history_entry_id' => $historyEntry->id,
                 'notification_type' => NotificationType::MissingInformationRequested,
                 'body' => 'A staff member requested more information on your request.',
+            ]);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    /**
+     * Best-effort: one `information_provided` notification for the responsible
+     * staff member (UC-04 step 10). The reply, transition, and history entry are
+     * already durable, so any fault here is swallowed and reported — it never
+     * rolls back the provided information, which stays stored and visible inside
+     * the request (ext 10a) [03_use-cases.md UC-04 step 10; 05_system-design.md §4].
+     */
+    private function notifyStaffOfInformationProvided(Request $request, RequestHistoryEntry $historyEntry): void
+    {
+        try {
+            Notification::create([
+                'recipient_user_account_id' => $request->responsible_staff_user_account_id,
+                'request_id' => $request->id,
+                'request_history_entry_id' => $historyEntry->id,
+                'notification_type' => NotificationType::InformationProvided,
+                'body' => 'The citizen provided the requested information.',
             ]);
         } catch (Throwable $exception) {
             report($exception);

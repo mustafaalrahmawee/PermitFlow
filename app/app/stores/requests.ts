@@ -33,6 +33,9 @@ import type {
  *   - POST /requests/{id}/start-review       → { data: RequestRecord, message }            (submitted → in_review)
  * UC-07 adds the responsible staff member's request-missing-information action:
  *   - POST /requests/{id}/request-information → { data: RequestRecord, message }            (in_review → waiting_for_citizen)
+ * UC-04 adds the owning citizen's provide-information action (the reply; documents
+ * reuse the UC-02 attach seam above):
+ *   - POST /requests/{id}/provide-information  → { data: RequestRecord, message }            (waiting_for_citizen → in_review)
  * UC-08 adds the responsible staff member's update-progress action:
  *   - PATCH /requests/{id}/status             → { data: RequestRecord, message }            (chosen status via the transition guard)
  * UC-09 adds the responsible staff member's record-a-decision action:
@@ -131,6 +134,13 @@ export const useRequestsStore = defineStore("requests", () => {
 
     documents.value.push(res.data);
 
+    // On the detail page (UC-04, a Waiting for Citizen request) reflect the newly
+    // attached document in the loaded detail so the citizen sees it without a
+    // refresh; the attach seam returns the full document, so patch in place.
+    if (current.value && current.value.id === id) {
+      current.value.documents.push(res.data);
+    }
+
     return res.data;
   }
 
@@ -193,6 +203,44 @@ export const useRequestsStore = defineStore("requests", () => {
   ): Promise<RequestRecord> {
     const res = await $fetch<{ data: RequestRecord }>(
       `/requests/${id}/request-information`,
+      {
+        method: "POST",
+        body: { body },
+      },
+    );
+
+    const row = list.value.find((item) => item.id === res.data.id);
+    if (row) {
+      row.status = res.data.status;
+    }
+
+    if (current.value && current.value.id === res.data.id) {
+      await fetchOne(res.data.id);
+    }
+
+    return res.data;
+  }
+
+  /**
+   * UC-04 — the owning citizen provides the requested information on a Waiting for
+   * Citizen request, sending a reply that explains or supplies what was asked for
+   * (supporting documents go through `attachDocument` above). On success the
+   * request moves Waiting for Citizen → In Review, the `citizen_reply` message and
+   * a linked `information_provided` history entry are written, and the responsible
+   * staff member is notified. As with the staff transitions the response carries
+   * only the bare `RequestRecord` (no relations), so the loaded detail is reloaded
+   * so status, history, and the new message all reflect the change without the
+   * user refreshing; the matching worklist row is patched in place. A request the
+   * caller does not own throws 404 (ext 1a), a request no longer Draft/Waiting for
+   * Citizen throws 403 (ext 2a), and an empty reply throws 422 for the page to
+   * render.
+   */
+  async function provideInformation(
+    id: number | string,
+    body: string,
+  ): Promise<RequestRecord> {
+    const res = await $fetch<{ data: RequestRecord }>(
+      `/requests/${id}/provide-information`,
       {
         method: "POST",
         body: { body },
@@ -314,6 +362,7 @@ export const useRequestsStore = defineStore("requests", () => {
     submit,
     startReview,
     requestInformation,
+    provideInformation,
     updateStatus,
     recordDecision,
     reset,

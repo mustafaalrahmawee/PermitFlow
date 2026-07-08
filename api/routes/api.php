@@ -117,6 +117,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/requests/{request}/request-information', [RequestController::class, 'requestInformation']);
 
     /*
+     * UC-04 — the owning citizen provides the requested information on a Waiting
+     * for Citizen request. Request-scoped with `RequestPolicy@provideInformation`
+     * (owner, Draft or Waiting for Citizen) and the `MessagePolicy@create`
+     * participant guard enforced in the controller; an out-of-scope record reads
+     * as 404, not 403. It moves the request Waiting for Citizen → In Review through
+     * the status guard, records the `citizen_reply` message to the responsible
+     * staff member, writes the linked `information_provided` history entry, and
+     * best-effort notifies the staff member. Supporting documents are attached
+     * through the shared `POST /requests/{request}/documents` seam [03_use-cases.md
+     * UC-04; BR-004, BR-005, BR-011, BR-016, BR-017; docs/conventions.md
+     * Authorization, Status transitions].
+     */
+    Route::post('/requests/{request}/provide-information', [RequestController::class, 'provideInformation']);
+
+    /*
      * UC-08 — the responsible staff member moves an assigned request to the next
      * status. Request-scoped with `RequestPolicy@review` (responsible staff only)
      * enforced in the controller; an out-of-scope record reads as 404, not 403.
