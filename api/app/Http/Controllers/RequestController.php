@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Enums\AccountState;
 use App\Enums\HistoryEventType;
+use App\Enums\MessageKind;
 use App\Enums\NotificationType;
 use App\Enums\RequestStatus;
 use App\Enums\Role;
+use App\Http\Requests\RequestMissingInformationRequest;
 use App\Http\Requests\StoreRequestRequest;
 use App\Http\Requests\UpdateRequestRequest;
+use App\Models\Message;
 use App\Models\Notification;
 use App\Models\Request;
 use App\Models\RequestHistoryEntry;
@@ -298,6 +301,82 @@ class RequestController extends Controller
     }
 
     /**
+     * Request missing information from the citizen (UC-07 main flow). Out-of-scope
+     * records read as not found (404, ext 1a); only the responsible staff member
+     * may act (`review`, 403 otherwise — an in-scope owner or administrator lacks
+     * the ability), and the message participant relationship is guarded by
+     * `MessagePolicy@create` (403 otherwise, ext 4a).
+     *
+     * The durable-write path is atomic: the recorded `missing_information_request`
+     * message, the guarded In Review → Waiting for Citizen transition, and the
+     * linked `information_requested` history entry are saved in one transaction, so
+     * the citizen is never notified of a request that was not recorded (ext 5a). A
+     * request that is not In Review is a blocked transition — a 409 (ext 2a) — and a
+     * persistence fault rolls back to In Review with no message or history row (500,
+     * ext 5a). The citizen notification is best-effort and runs after the commit: a
+     * notification fault leaves the missing-information request recorded and visible
+     * inside the request (ext 7a) [03_use-cases.md UC-07; BR-004, BR-009, BR-011,
+     * BR-016, BR-017; docs/conventions.md Authorization, Status transitions].
+     */
+    public function requestInformation(RequestMissingInformationRequest $formRequest, Request $request): JsonResponse
+    {
+        $actor = $formRequest->user();
+
+        $this->ensureInScope($actor, $request);
+        abort_if(
+            Gate::forUser($actor)->denies('review', $request),
+            403,
+            'You are not allowed to review this request.',
+        );
+        abort_if(
+            Gate::forUser($actor)->denies('create', [Message::class, $request]),
+            403,
+            'You are not allowed to message on this request.',
+        );
+
+        $body = $formRequest->validated()['body'];
+        $fromStatus = $request->status;
+
+        $historyEntry = DB::transaction(function () use ($request, $actor, $fromStatus, $body): RequestHistoryEntry {
+            // Record the missing-information message; sender is the responsible
+            // staff member, recipient the owning citizen (BR-011).
+            $message = Message::create([
+                'request_id' => $request->id,
+                'sender_user_account_id' => $actor->id,
+                'recipient_user_account_id' => $request->owner_user_account_id,
+                'message_kind' => MessageKind::MissingInformationRequest,
+                'body' => $body,
+                'sent_at' => now(),
+            ]);
+
+            // Guarded transition — sets the status in memory, raising
+            // IllegalStatusTransitionException (rendered 409) on an illegal target.
+            $request->transitionTo(RequestStatus::WaitingForCitizen);
+            $request->save();
+
+            $sequence = (int) $request->historyEntries()->max('sequence_number') + 1;
+
+            return $request->historyEntries()->create([
+                'sequence_number' => $sequence,
+                'actor_user_account_id' => $actor->id,
+                'message_id' => $message->id,
+                'event_type' => HistoryEventType::InformationRequested,
+                'from_status' => $fromStatus,
+                'to_status' => RequestStatus::WaitingForCitizen,
+                'summary' => 'Staff member requested missing information from the citizen.',
+                'event_occurred_at' => now(),
+            ]);
+        });
+
+        $this->notifyCitizenOfInformationRequest($request, $historyEntry);
+
+        return response()->json([
+            'data' => $request->fresh(),
+            'message' => 'Missing information requested from the citizen.',
+        ]);
+    }
+
+    /**
      * Report an out-of-scope record as not found (404) rather than forbidden, so
      * existence is not revealed [02_business-rules.md BR-016; docs/conventions.md
      * API error responses — 404].
@@ -330,6 +409,28 @@ class RequestController extends Controller
                     'body' => 'A new request was submitted and needs assignment.',
                 ]);
             }
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    /**
+     * Best-effort: one `missing_information_requested` notification for the owning
+     * citizen (step 7). The message, transition, and history entry are already
+     * durable, so any fault here is swallowed and reported — it never rolls back
+     * the missing-information request, which stays recorded and visible inside the
+     * request (ext 7a) [03_use-cases.md UC-07 step 7; 05_system-design.md §4].
+     */
+    private function notifyCitizenOfInformationRequest(Request $request, RequestHistoryEntry $historyEntry): void
+    {
+        try {
+            Notification::create([
+                'recipient_user_account_id' => $request->owner_user_account_id,
+                'request_id' => $request->id,
+                'request_history_entry_id' => $historyEntry->id,
+                'notification_type' => NotificationType::MissingInformationRequested,
+                'body' => 'A staff member requested more information on your request.',
+            ]);
         } catch (Throwable $exception) {
             report($exception);
         }

@@ -104,6 +104,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/requests/{request}/start-review', [RequestController::class, 'startReview']);
 
     /*
+     * UC-07 — the responsible staff member requests missing information from the
+     * citizen. Request-scoped with `RequestPolicy@review` (responsible staff only)
+     * and the `MessagePolicy@create` participant guard enforced in the controller;
+     * an out-of-scope record reads as 404, not 403. It records the
+     * `missing_information_request` message, moves the request In Review → Waiting
+     * for Citizen through the status guard, writes the linked history entry, and
+     * best-effort notifies the citizen [03_use-cases.md UC-07; BR-004, BR-009,
+     * BR-011, BR-016; docs/conventions.md Authorization, Status transitions].
+     */
+    Route::post('/requests/{request}/request-information', [RequestController::class, 'requestInformation']);
+
+    /*
      * UC-05 — administrator assigns or reassigns a submitted/active request to a
      * responsible staff member. All three seams are administrator-only through the
      * `assign-requests` gate, which fails closed for inactive or non-admin actors

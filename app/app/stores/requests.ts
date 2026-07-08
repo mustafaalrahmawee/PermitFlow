@@ -28,6 +28,8 @@ import type {
  *   - GET  /requests/{id}                    → { data: RequestDetail, message }            (in-scope; 404 otherwise)
  * UC-06 adds the responsible staff member's start-review action:
  *   - POST /requests/{id}/start-review       → { data: RequestRecord, message }            (submitted → in_review)
+ * UC-07 adds the responsible staff member's request-missing-information action:
+ *   - POST /requests/{id}/request-information → { data: RequestRecord, message }            (in_review → waiting_for_citizen)
  * Actions throw on 403/404/409/422 (error envelope `{ message, errors? }`) for
  * the calling page to render. Mutations patch local state in place — no refetch.
  */
@@ -166,6 +168,42 @@ export const useRequestsStore = defineStore("requests", () => {
     return res.data;
   }
 
+  /**
+   * UC-07 — the responsible staff member requests missing information from the
+   * citizen with a message explaining what to provide. On success the request
+   * moves In Review → Waiting for Citizen and the missing-information message is
+   * recorded on the request. The transition response carries only the bare
+   * `RequestRecord` (no relations), so — as with start-review — the loaded detail
+   * is reloaded so status, history, and the new message all reflect the change
+   * without the user refreshing; the matching worklist row is patched in place.
+   * A request not in the staff member's scope throws 404, a caller who is not the
+   * responsible staff throws 403, a request no longer In Review throws 409
+   * (ext 2a), and an empty message throws 422 (ext 3a) for the page to render.
+   */
+  async function requestInformation(
+    id: number | string,
+    body: string,
+  ): Promise<RequestRecord> {
+    const res = await $fetch<{ data: RequestRecord }>(
+      `/requests/${id}/request-information`,
+      {
+        method: "POST",
+        body: { body },
+      },
+    );
+
+    const row = list.value.find((item) => item.id === res.data.id);
+    if (row) {
+      row.status = res.data.status;
+    }
+
+    if (current.value && current.value.id === res.data.id) {
+      await fetchOne(res.data.id);
+    }
+
+    return res.data;
+  }
+
   /** Reset local state for a new filing session. */
   function reset(): void {
     draft.value = null;
@@ -187,6 +225,7 @@ export const useRequestsStore = defineStore("requests", () => {
     attachDocument,
     submit,
     startReview,
+    requestInformation,
     reset,
   };
 });

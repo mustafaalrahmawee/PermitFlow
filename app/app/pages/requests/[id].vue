@@ -3,6 +3,7 @@ import { storeToRefs } from "pinia";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { decisionOutcomeLabels, requestStatusLabels } from "~/types/request";
 
 // UC-03 / UC-06 — one request's detail, shared by the owning citizen tracking
@@ -59,6 +60,53 @@ async function onStartReview(): Promise<void> {
           : "Could not start the review. Please try again.";
   } finally {
     startingReview.value = false;
+  }
+}
+
+// UC-07 — the responsible staff member may request missing information only
+// while the request is In Review; the action records the message and moves the
+// request to Waiting for Citizen.
+const canRequestInformation = computed(
+  () =>
+    Boolean(current.value) &&
+    user.value?.role === "staff_member" &&
+    current.value?.responsible_staff_user_account_id === user.value?.id &&
+    current.value?.status === "in_review",
+);
+
+const informationBody = ref("");
+const requestingInformation = ref(false);
+const informationError = ref<string | null>(null);
+const informationFieldError = ref<string | null>(null);
+
+async function onRequestInformation(): Promise<void> {
+  if (!current.value) {
+    return;
+  }
+  requestingInformation.value = true;
+  informationError.value = null;
+  informationFieldError.value = null;
+  try {
+    await store.requestInformation(current.value.id, informationBody.value);
+    informationBody.value = "";
+    toast("Missing information requested from the citizen.");
+  } catch (error: unknown) {
+    const status = (error as { statusCode?: number }).statusCode;
+    const data = (error as { data?: { errors?: { body?: string[] } } }).data;
+    if (status === 422) {
+      // ext 3a — an empty message is not sent; the system asks for a clear message.
+      informationFieldError.value =
+        data?.errors?.body?.[0] ?? "Please write a clear message for the citizen.";
+    } else {
+      informationError.value =
+        status === 409
+          ? "This request can no longer accept a missing-information request."
+          : status === 403
+            ? "You are not allowed to request information on this request."
+            : "Could not send the request. Please try again.";
+    }
+  } finally {
+    requestingInformation.value = false;
   }
 }
 
@@ -156,6 +204,45 @@ onMounted(async () => {
           >
             {{ startingReview ? "Starting…" : "Start review" }}
           </Button>
+        </CardContent>
+      </Card>
+
+      <!-- UC-07 — the responsible staff member requests missing information from
+           the citizen while the request is In Review. On success the message is
+           recorded and the request moves to Waiting for Citizen; an empty message
+           is rejected inline (422, ext 3a) and a blocked transition (409) or
+           denial (403) surfaces without recording anything. -->
+      <Card v-if="canRequestInformation" class="mb-6">
+        <CardHeader>
+          <CardTitle class="text-base">Request missing information</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p class="mb-3 text-sm text-muted-foreground">
+            Explain what the citizen must provide. Sending this moves the request to
+            Waiting for Citizen.
+          </p>
+          <form class="space-y-3" @submit.prevent="onRequestInformation">
+            <div class="space-y-1.5">
+              <Label for="information-body">Message to the citizen</Label>
+              <textarea
+                id="information-body"
+                v-model="informationBody"
+                rows="4"
+                :aria-invalid="Boolean(informationFieldError)"
+                class="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="Describe the information or documents still needed…"
+              />
+              <p v-if="informationFieldError" class="text-sm text-destructive">
+                {{ informationFieldError }}
+              </p>
+            </div>
+            <p v-if="informationError" class="text-sm text-destructive">
+              {{ informationError }}
+            </p>
+            <Button type="submit" :disabled="requestingInformation">
+              {{ requestingInformation ? "Sending…" : "Request information" }}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
