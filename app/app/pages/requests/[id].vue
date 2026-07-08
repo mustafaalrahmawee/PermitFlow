@@ -110,6 +110,44 @@ async function onRequestInformation(): Promise<void> {
   }
 }
 
+// UC-08 — the responsible staff member moves the review forward. The
+// characteristic staff-driven move through this seam is In Review → Ready for
+// Decision, offered here while the request is In Review.
+const canMarkReadyForDecision = computed(
+  () =>
+    Boolean(current.value) &&
+    user.value?.role === "staff_member" &&
+    current.value?.responsible_staff_user_account_id === user.value?.id &&
+    current.value?.status === "in_review",
+);
+
+const markingReady = ref(false);
+const markReadyError = ref<string | null>(null);
+
+async function onMarkReadyForDecision(): Promise<void> {
+  if (!current.value) {
+    return;
+  }
+  markingReady.value = true;
+  markReadyError.value = null;
+  try {
+    await store.updateStatus(current.value.id, "ready_for_decision");
+    toast("Request moved to Ready for Decision.");
+  } catch (error: unknown) {
+    const status = (error as { statusCode?: number }).statusCode;
+    markReadyError.value =
+      status === 409
+        ? "This request can no longer be moved to Ready for Decision."
+        : status === 422
+          ? "That status is not a valid choice."
+          : status === 403
+            ? "You are not allowed to update this request."
+            : "Could not update the status. Please try again.";
+  } finally {
+    markingReady.value = false;
+  }
+}
+
 function formatDate(value: string | null): string {
   if (!value) {
     return "—";
@@ -243,6 +281,31 @@ onMounted(async () => {
               {{ requestingInformation ? "Sending…" : "Request information" }}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <!-- UC-08 — the responsible staff member moves the review forward. The
+           characteristic move out of In Review is Ready for Decision; the action
+           advances the status through the transition guard and records a
+           status_changed history entry. A blocked transition (409), an invalid
+           status (422), or a denial (403) surfaces here without advancing. -->
+      <Card v-if="canMarkReadyForDecision || markReadyError" class="mb-6">
+        <CardContent class="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm font-medium">Move to Ready for Decision</p>
+            <p class="mt-1 text-sm text-muted-foreground">
+              Once the review is complete, advance the request so a decision can be recorded.
+            </p>
+            <p v-if="markReadyError" class="mt-2 text-sm text-destructive">{{ markReadyError }}</p>
+          </div>
+          <Button
+            v-if="canMarkReadyForDecision"
+            :disabled="markingReady"
+            class="shrink-0"
+            @click="onMarkReadyForDecision"
+          >
+            {{ markingReady ? "Updating…" : "Mark ready for decision" }}
+          </Button>
         </CardContent>
       </Card>
 

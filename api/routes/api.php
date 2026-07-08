@@ -116,6 +116,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/requests/{request}/request-information', [RequestController::class, 'requestInformation']);
 
     /*
+     * UC-08 — the responsible staff member moves an assigned request to the next
+     * status. Request-scoped with `RequestPolicy@review` (responsible staff only)
+     * enforced in the controller; an out-of-scope record reads as 404, not 403.
+     * The chosen `status` must belong to the defined set (422) and be a legal move
+     * in the v1 transition graph, enforced by the status guard (409). It applies
+     * the change, writes the `status_changed` history entry in the same
+     * transaction, and best-effort notifies the citizen [03_use-cases.md UC-08;
+     * BR-004, BR-009, BR-016, BR-017; docs/conventions.md Authorization, Status
+     * transitions].
+     */
+    Route::patch('/requests/{request}/status', [RequestController::class, 'updateStatus']);
+
+    /*
      * UC-05 — administrator assigns or reassigns a submitted/active request to a
      * responsible staff member. All three seams are administrator-only through the
      * `assign-requests` gate, which fails closed for inactive or non-admin actors

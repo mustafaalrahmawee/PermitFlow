@@ -11,6 +11,7 @@ use App\Enums\Role;
 use App\Http\Requests\RequestMissingInformationRequest;
 use App\Http\Requests\StoreRequestRequest;
 use App\Http\Requests\UpdateRequestRequest;
+use App\Http\Requests\UpdateRequestStatusRequest;
 use App\Models\Message;
 use App\Models\Notification;
 use App\Models\Request;
@@ -377,6 +378,64 @@ class RequestController extends Controller
     }
 
     /**
+     * Move an assigned request to the next status (UC-08 main flow). Out-of-scope
+     * records read as not found (404, ext 1a); only the responsible staff member
+     * may act (`review`, 403 otherwise — an in-scope owner or administrator lacks
+     * the ability, ext 1a). The chosen `status` must belong to the defined set,
+     * enforced by the form request as a 422 (ext 2a) before the guard is consulted.
+     *
+     * The durable-write path is atomic: the guarded transition and its
+     * `status_changed` history entry are saved in one transaction, so the request
+     * never moves to an undefined, disallowed, or untraceable status. A move
+     * outside the allowed v1 transition graph is a blocked transition — a 409
+     * (ext 4a) — and a persistence fault rolls the status back with no history row
+     * (500, ext 5a, ext 6a). The citizen notification is best-effort and runs after
+     * the commit: a notification fault leaves the status change recorded and
+     * visible inside the request (ext 7a) [03_use-cases.md UC-08; BR-004, BR-009,
+     * BR-016, BR-017; docs/conventions.md Authorization, Status transitions].
+     */
+    public function updateStatus(UpdateRequestStatusRequest $formRequest, Request $request): JsonResponse
+    {
+        $actor = $formRequest->user();
+
+        $this->ensureInScope($actor, $request);
+        abort_if(
+            Gate::forUser($actor)->denies('review', $request),
+            403,
+            'You are not allowed to update this request.',
+        );
+
+        $targetStatus = RequestStatus::from($formRequest->validated()['status']);
+        $fromStatus = $request->status;
+
+        $historyEntry = DB::transaction(function () use ($request, $actor, $fromStatus, $targetStatus): RequestHistoryEntry {
+            // Guarded transition — sets the status in memory, raising
+            // IllegalStatusTransitionException (rendered 409) on an illegal target.
+            $request->transitionTo($targetStatus);
+            $request->save();
+
+            $sequence = (int) $request->historyEntries()->max('sequence_number') + 1;
+
+            return $request->historyEntries()->create([
+                'sequence_number' => $sequence,
+                'actor_user_account_id' => $actor->id,
+                'event_type' => HistoryEventType::StatusChanged,
+                'from_status' => $fromStatus,
+                'to_status' => $targetStatus,
+                'summary' => sprintf('Staff member moved the request to %s.', $targetStatus->label()),
+                'event_occurred_at' => now(),
+            ]);
+        });
+
+        $this->notifyCitizenOfStatusChange($request, $historyEntry, $targetStatus);
+
+        return response()->json([
+            'data' => $request->fresh(),
+            'message' => 'Request status updated.',
+        ]);
+    }
+
+    /**
      * Report an out-of-scope record as not found (404) rather than forbidden, so
      * existence is not revealed [02_business-rules.md BR-016; docs/conventions.md
      * API error responses — 404].
@@ -430,6 +489,29 @@ class RequestController extends Controller
                 'request_history_entry_id' => $historyEntry->id,
                 'notification_type' => NotificationType::MissingInformationRequested,
                 'body' => 'A staff member requested more information on your request.',
+            ]);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    /**
+     * Best-effort: one `status_changed` notification for the owning citizen (step
+     * 7). Every status change driven through this seam is treated as relevant to
+     * the citizen. The transition and history entry are already durable, so any
+     * fault here is swallowed and reported — it never rolls back the status change,
+     * which stays recorded and visible inside the request (ext 7a)
+     * [03_use-cases.md UC-08 step 7; 05_system-design.md §4].
+     */
+    private function notifyCitizenOfStatusChange(Request $request, RequestHistoryEntry $historyEntry, RequestStatus $targetStatus): void
+    {
+        try {
+            Notification::create([
+                'recipient_user_account_id' => $request->owner_user_account_id,
+                'request_id' => $request->id,
+                'request_history_entry_id' => $historyEntry->id,
+                'notification_type' => NotificationType::StatusChanged,
+                'body' => sprintf('Your request status changed to %s.', $targetStatus->label()),
             ]);
         } catch (Throwable $exception) {
             report($exception);
