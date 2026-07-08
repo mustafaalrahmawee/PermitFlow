@@ -21,8 +21,10 @@ import { decisionOutcomeLabels, requestStatusLabels } from "~/types/request";
 
 const route = useRoute();
 const store = useRequestsStore();
+const messagesStore = useMessagesStore();
 const auth = useAuthStore();
 const { current } = storeToRefs(store);
+const { thread } = storeToRefs(messagesStore);
 const { user } = storeToRefs(auth);
 
 const loading = ref(true);
@@ -331,6 +333,87 @@ async function onRecordDecision(): Promise<void> {
   }
 }
 
+// UC-10 — general two-way messaging between the request's owning citizen and its
+// responsible staff member. Either participant may read the thread and send; an
+// administrator can read under oversight but is not a BR-011 participant, so no
+// compose form is offered to them.
+const isParticipant = computed(
+  () =>
+    Boolean(current.value) &&
+    ((user.value?.role === "citizen" &&
+      current.value?.owner_user_account_id === user.value?.id) ||
+      (user.value?.role === "staff_member" &&
+        current.value?.responsible_staff_user_account_id === user.value?.id)),
+);
+
+// ext 4a — with no responsible staff member assigned yet, direct staff-citizen
+// exchange cannot complete; the citizen is asked to wait until assignment. Only
+// the owning citizen can reach this state, since a staff member is a participant
+// only once assigned.
+const awaitingAssignment = computed(
+  () =>
+    isParticipant.value &&
+    current.value?.responsible_staff_user_account_id == null,
+);
+
+const canSendMessage = computed(
+  () =>
+    isParticipant.value &&
+    current.value?.responsible_staff_user_account_id != null,
+);
+
+// Attribute each message without a name lookup: the current user is "You", the
+// responsible staff member is "Staff member", and the owning citizen is
+// "Citizen".
+function senderLabel(senderId: number): string {
+  if (senderId === user.value?.id) {
+    return "You";
+  }
+  if (senderId === current.value?.responsible_staff_user_account_id) {
+    return "Staff member";
+  }
+  return "Citizen";
+}
+
+const messageBody = ref("");
+const sendingMessage = ref(false);
+const messageError = ref<string | null>(null);
+const messageFieldError = ref<string | null>(null);
+
+async function onSendMessage(): Promise<void> {
+  if (!current.value) {
+    return;
+  }
+  sendingMessage.value = true;
+  messageError.value = null;
+  messageFieldError.value = null;
+  try {
+    await messagesStore.sendMessage(current.value.id, messageBody.value);
+    messageBody.value = "";
+    toast("Message sent.");
+  } catch (error: unknown) {
+    const status = (error as { statusCode?: number }).statusCode;
+    const data = (error as { data?: { errors?: { body?: string[] } } }).data;
+    if (status === 422) {
+      // ext 3a — an empty message is not recorded; ask for message content.
+      messageFieldError.value =
+        data?.errors?.body?.[0] ?? "Please write a message before sending.";
+    } else {
+      messageError.value =
+        status === 409
+          ? // ext 4a — no responsible staff member assigned yet.
+            "This request has no assigned staff member yet. Please wait until it is assigned."
+          : status === 403
+            ? "You are not allowed to message on this request."
+            : status === 404
+              ? "This request is no longer available to you."
+              : "Could not send your message. Please try again.";
+    }
+  } finally {
+    sendingMessage.value = false;
+  }
+}
+
 function formatDate(value: string | null): string {
   if (!value) {
     return "—";
@@ -347,8 +430,18 @@ function statusClass(status: string): string {
 }
 
 onMounted(async () => {
+  messagesStore.reset();
   try {
     await store.fetchOne(route.params.id as string);
+    // The detail read already confirmed request-scoped reach, so the caller may
+    // read the thread through the UC-10 seam (owner, responsible staff, or
+    // administrator). A thread-load fault is non-fatal — the rest of the detail
+    // still renders — so it is swallowed here.
+    try {
+      await messagesStore.fetchThread(route.params.id as string);
+    } catch {
+      // Leave the thread empty; the detail remains usable.
+    }
   } catch (error: unknown) {
     const status = (error as { statusCode?: number }).statusCode;
     if (status === 404) {
@@ -706,30 +799,72 @@ onMounted(async () => {
         </CardContent>
       </Card>
 
-      <!-- Messages connected to the request (step 6). -->
+      <!-- UC-10 — the message thread between the owning citizen and the
+           responsible staff member. The thread is read through the dedicated
+           messages seam (request-scoped: owner, responsible staff, or
+           administrator). A participant can send a general message, which the
+           other participant then sees; an empty message is rejected inline (422,
+           ext 3a). Until a responsible staff member is assigned, the citizen is
+           asked to wait (ext 4a). -->
       <Card class="mb-6">
         <CardHeader>
           <CardTitle class="text-base">Messages</CardTitle>
         </CardHeader>
-        <CardContent>
-          <p
-            v-if="current.messages.length === 0"
-            class="text-sm text-muted-foreground"
-          >
+        <CardContent class="space-y-6">
+          <p v-if="thread.length === 0" class="text-sm text-muted-foreground">
             No messages yet.
           </p>
           <ul v-else class="space-y-3">
             <li
-              v-for="message in current.messages"
+              v-for="message in thread"
               :key="message.id"
               class="rounded-lg border p-3"
             >
-              <p class="text-sm">{{ message.body }}</p>
+              <p class="text-xs font-medium text-muted-foreground">
+                {{ senderLabel(message.sender_user_account_id) }}
+              </p>
+              <p class="mt-1 text-sm">{{ message.body }}</p>
               <p class="mt-1 text-xs text-muted-foreground">
                 {{ formatDate(message.sent_at) }}
               </p>
             </li>
           </ul>
+
+          <!-- ext 4a — no responsible staff member assigned yet; wait to message. -->
+          <Alert v-if="awaitingAssignment">
+            <AlertDescription>
+              You'll be able to send messages once a staff member is assigned to
+              this request.
+            </AlertDescription>
+          </Alert>
+
+          <!-- A participant sends a general message to the other participant. -->
+          <form
+            v-else-if="canSendMessage"
+            class="space-y-3"
+            @submit.prevent="onSendMessage"
+          >
+            <div class="space-y-1.5">
+              <Label for="message-body">Write a message</Label>
+              <textarea
+                id="message-body"
+                v-model="messageBody"
+                rows="3"
+                :aria-invalid="Boolean(messageFieldError)"
+                class="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="Ask or answer a question about this request…"
+              />
+              <p v-if="messageFieldError" class="text-sm text-destructive">
+                {{ messageFieldError }}
+              </p>
+            </div>
+            <p v-if="messageError" class="text-sm text-destructive">
+              {{ messageError }}
+            </p>
+            <Button type="submit" :disabled="sendingMessage">
+              {{ sendingMessage ? "Sending…" : "Send message" }}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 

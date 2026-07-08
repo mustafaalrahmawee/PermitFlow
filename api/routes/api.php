@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\UserAccountController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DecisionController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\RequestCategoryController;
 use App\Http\Controllers\RequestController;
 use Illuminate\Support\Facades\Route;
@@ -157,6 +158,23 @@ Route::middleware('auth:sanctum')->group(function () {
      * Authorization, Status transitions, Storage].
      */
     Route::post('/requests/{request}/decision', [DecisionController::class, 'store']);
+
+    /*
+     * UC-10 — a request participant (the owning citizen or the responsible staff
+     * member) exchanges general request-related messages. Both seams are
+     * request-scoped: reading the thread follows request-scoped reach (owner,
+     * responsible staff, or administrator — an out-of-scope record reads as 404,
+     * not 403), while sending is narrower and guarded by `MessagePolicy@create`
+     * (the two BR-011 participants only, so an in-scope administrator is denied
+     * 403). With no responsible staff member assigned yet the send is blocked by
+     * current state (409); an empty body is a 422. A sent message records a
+     * `general` message with sender = the actor and recipient = the other
+     * participant and best-effort notifies that recipient; it changes no status
+     * and writes no history entry [03_use-cases.md UC-10; BR-009, BR-011, BR-016;
+     * docs/conventions.md Authorization].
+     */
+    Route::get('/requests/{request}/messages', [MessageController::class, 'index']);
+    Route::post('/requests/{request}/messages', [MessageController::class, 'store']);
 
     /*
      * UC-05 — administrator assigns or reassigns a submitted/active request to a
