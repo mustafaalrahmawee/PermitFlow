@@ -42,6 +42,11 @@ interface AppFunction {
 const functionsByRole: Record<AuthUser["role"], AppFunction[]> = {
   citizen: [
     {
+      label: "My requests",
+      description: "View your permit requests and their status.",
+      to: "/requests",
+    },
+    {
       label: "Submit and track requests",
       description: "Start a new permit request and follow its status.",
       to: "/requests/new",
@@ -101,6 +106,11 @@ const functionsByRole: Record<AuthUser["role"], AppFunction[]> = {
 const functions = computed(() =>
   auth.user ? functionsByRole[auth.user.role] : [],
 );
+
+// Resolve the real NuxtLink so `<component :is>` renders a working link. Passing
+// the bare string "NuxtLink" does not reliably resolve to the component, leaving
+// an inert <a> that never navigates.
+const NuxtLink = resolveComponent("NuxtLink");
 </script>
 
 <template>
@@ -127,7 +137,7 @@ const functions = computed(() =>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <component
-          :is="fn.to ? 'NuxtLink' : 'div'"
+          :is="fn.to ? NuxtLink : 'div'"
           v-for="fn in functions"
           :key="fn.label"
           :to="fn.to"
@@ -138,31 +148,22 @@ const functions = computed(() =>
               : 'opacity-70'
           "
         >
-          <NuxtLink v-if="fn.to" :to="fn.to">
-            <div class="flex items-center justify-between gap-3">
-              <h3 class="font-medium">{{ fn.label }}</h3>
-              <span
-                v-if="fn.to"
-                class="text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                >&rarr;</span
-              >
-            </div>
-            <p class="mt-1.5 text-sm text-muted-foreground">
-              {{ fn.description }}
-            </p>
-          </NuxtLink>
-          <div v-else>
-            <div class="flex items-center justify-between gap-3">
-              <h3 class="font-medium">{{ fn.label }}</h3>
-              <span
-                class="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-                >Soon</span
-              >
-            </div>
-            <p class="mt-1.5 text-sm text-muted-foreground">
-              {{ fn.description }}
-            </p>
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="font-medium">{{ fn.label }}</h3>
+            <span
+              v-if="fn.to"
+              class="text-muted-foreground transition-transform group-hover:translate-x-0.5"
+              >&rarr;</span
+            >
+            <span
+              v-else
+              class="rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+              >Soon</span
+            >
           </div>
+          <p class="mt-1.5 text-sm text-muted-foreground">
+            {{ fn.description }}
+          </p>
         </component>
       </div>
     </template>

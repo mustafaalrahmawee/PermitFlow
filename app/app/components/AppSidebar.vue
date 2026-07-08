@@ -47,8 +47,24 @@ const links = computed(() =>
   allLinks.filter((link) => !link.roles || (user.value && link.roles.includes(user.value.role))),
 );
 
+// Highlight exactly one link: the most specific one whose path the current route
+// falls under. Without the longest-match tie-break, `/requests/new` would light up
+// both "New request" and "My requests" (`/requests`), since the latter is a prefix.
+function matches(to: string): boolean {
+  return to === "/"
+    ? route.path === "/"
+    : route.path === to || route.path.startsWith(`${to}/`);
+}
+
+const activeTo = computed(() =>
+  links.value.reduce(
+    (best, link) => (matches(link.to) && link.to.length > best.length ? link.to : best),
+    "",
+  ),
+);
+
 function isActive(to: string): boolean {
-  return to === "/" ? route.path === "/" : route.path.startsWith(to);
+  return to === activeTo.value;
 }
 
 const roleLabels: Record<AuthUser["role"], string> = {
