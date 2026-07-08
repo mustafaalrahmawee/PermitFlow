@@ -5,20 +5,62 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { decisionOutcomeLabels, requestStatusLabels } from "~/types/request";
 
-// UC-03 — a citizen tracks one request's progress (main flow steps 3–6). Reads
-// the request detail from the requests store and renders the current status,
-// the understandable history (each entry's frozen summary — ext 5a), and the
-// connected messages, documents, and decision. A request the caller does not
-// own reads as not found (404 → the not-found state, ext 3a), so existence is
-// never revealed. Authenticated page: the routing defaults cover it.
+// UC-03 / UC-06 — one request's detail, shared by the owning citizen tracking
+// progress and the responsible staff member reviewing an assigned request (main
+// flow steps 3–6 / UC-06 step 4). Reads the request detail from the store and
+// renders the current status, the understandable history (each entry's frozen
+// summary — ext 5a), and the connected messages, documents, and decision — the
+// submitted information the staff member verifies before judging next steps
+// (UC-06 ext 6a, ext 6b). A request outside the caller's scope reads as not
+// found (404 → the not-found state, ext 3a), so existence is never revealed. For
+// the responsible staff member of a Submitted request, the review can be started
+// here (UC-06 step 5). Authenticated page: the routing defaults cover it.
 
 const route = useRoute();
 const store = useRequestsStore();
+const auth = useAuthStore();
 const { current } = storeToRefs(store);
+const { user } = storeToRefs(auth);
 
 const loading = ref(true);
 const notFound = ref(false);
 const loadError = ref<string | null>(null);
+
+// UC-06 step 5 — the responsible staff member may start review only while the
+// request is still Submitted; the action moves it to In Review.
+const canStartReview = computed(
+  () =>
+    Boolean(current.value) &&
+    user.value?.role === "staff_member" &&
+    current.value?.responsible_staff_user_account_id === user.value?.id &&
+    current.value?.status === "submitted",
+);
+
+const startingReview = ref(false);
+const reviewError = ref<string | null>(null);
+const { toast } = useToast();
+
+async function onStartReview(): Promise<void> {
+  if (!current.value) {
+    return;
+  }
+  startingReview.value = true;
+  reviewError.value = null;
+  try {
+    await store.startReview(current.value.id);
+    toast("Review started.");
+  } catch (error: unknown) {
+    const status = (error as { statusCode?: number }).statusCode;
+    reviewError.value =
+      status === 409
+        ? "This request can no longer be moved into review."
+        : status === 403
+          ? "You are not allowed to review this request."
+          : "Could not start the review. Please try again.";
+  } finally {
+    startingReview.value = false;
+  }
+}
 
 function formatDate(value: string | null): string {
   if (!value) {
@@ -57,7 +99,7 @@ onMounted(async () => {
       to="/requests"
       class="mb-6 inline-flex text-sm text-muted-foreground underline-offset-4 hover:underline"
     >
-      &larr; Back to my requests
+      &larr; {{ user?.role === "staff_member" ? "Back to assigned requests" : "Back to my requests" }}
     </NuxtLink>
 
     <p v-if="loading" class="text-sm text-muted-foreground">Loading request…</p>
@@ -92,6 +134,30 @@ onMounted(async () => {
           </span>
         </div>
       </header>
+
+      <!-- UC-06 step 5 — the responsible staff member starts the review of a
+           Submitted request; the status then moves to In Review and a history
+           entry records the change. A blocked transition (409) or denial (403)
+           surfaces here without leaving the review treated as started. -->
+      <Card v-if="canStartReview || reviewError" class="mb-6">
+        <CardContent class="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-sm font-medium">Start reviewing this request</p>
+            <p class="mt-1 text-sm text-muted-foreground">
+              Verify the submitted information and documents, then move the request into review.
+            </p>
+            <p v-if="reviewError" class="mt-2 text-sm text-destructive">{{ reviewError }}</p>
+          </div>
+          <Button
+            v-if="canStartReview"
+            :disabled="startingReview"
+            class="shrink-0"
+            @click="onStartReview"
+          >
+            {{ startingReview ? "Starting…" : "Start review" }}
+          </Button>
+        </CardContent>
+      </Card>
 
       <!-- Decision, when one has been recorded. -->
       <Card v-if="current.decision" class="mb-6">

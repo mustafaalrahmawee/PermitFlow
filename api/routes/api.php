@@ -93,6 +93,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/requests/{request}/submit', [RequestController::class, 'submit']);
 
     /*
+     * UC-06 — the responsible staff member starts reviewing an assigned request.
+     * The shared `/requests` list and `/requests/{request}` detail seams already
+     * scope reads to the responsible staff member; start-review is request-scoped
+     * with `RequestPolicy@review` (responsible staff only) enforced in the
+     * controller, and moves the request Submitted → In Review through the status
+     * guard [03_use-cases.md UC-06; BR-009; docs/conventions.md Authorization,
+     * Status transitions].
+     */
+    Route::post('/requests/{request}/start-review', [RequestController::class, 'startReview']);
+
+    /*
      * UC-05 — administrator assigns or reassigns a submitted/active request to a
      * responsible staff member. All three seams are administrator-only through the
      * `assign-requests` gate, which fails closed for inactive or non-admin actors

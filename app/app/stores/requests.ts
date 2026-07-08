@@ -20,9 +20,14 @@ import type {
  *   - PATCH /requests/{id}                  → { data: RequestRecord, message }
  *   - POST /requests/{id}/documents         → { data: RequestDocument, message }    (201, multipart)
  *   - POST /requests/{id}/submit            → { data: RequestRecord, message }
- * UC-03 adds the two read seams the citizen tracks progress through:
- *   - GET  /requests?page=N                 → { data: RequestListItem[], meta, message }  (owner-scoped)
- *   - GET  /requests/{id}                    → { data: RequestDetail, message }            (owner; 404 out-of-scope)
+ * UC-03 adds the two read seams the citizen tracks progress through — the list
+ * is role-scoped server-side, so a staff caller gets the requests they are
+ * responsible for (UC-06 steps 1–2) and the detail read reaches an assigned
+ * request the same way:
+ *   - GET  /requests?page=N                 → { data: RequestListItem[], meta, message }  (role-scoped)
+ *   - GET  /requests/{id}                    → { data: RequestDetail, message }            (in-scope; 404 otherwise)
+ * UC-06 adds the responsible staff member's start-review action:
+ *   - POST /requests/{id}/start-review       → { data: RequestRecord, message }            (submitted → in_review)
  * Actions throw on 403/404/409/422 (error envelope `{ message, errors? }`) for
  * the calling page to render. Mutations patch local state in place — no refetch.
  */
@@ -131,6 +136,36 @@ export const useRequestsStore = defineStore("requests", () => {
     return res.data;
   }
 
+  /**
+   * UC-06 step 5 — the responsible staff member starts reviewing an assigned
+   * request. On success the request moves Submitted → In Review. The transition
+   * response carries only the bare `RequestRecord` (no relations), so patching
+   * it into the detail would show the new status but miss the `status_changed`
+   * history entry the transaction just wrote; the loaded detail is therefore
+   * reloaded so status *and* history reflect the change without the user
+   * refreshing (ext 5a). The matching worklist row is patched in place so the
+   * list still reflects the transition without a refetch. A request not in the
+   * staff member's scope throws 404 (ext 3a), a caller who is not the
+   * responsible staff throws 403, and a request no longer Submitted throws 409
+   * (ext 5a) for the page to render.
+   */
+  async function startReview(id: number | string): Promise<RequestRecord> {
+    const res = await $fetch<{ data: RequestRecord }>(`/requests/${id}/start-review`, {
+      method: "POST",
+    });
+
+    const row = list.value.find((item) => item.id === res.data.id);
+    if (row) {
+      row.status = res.data.status;
+    }
+
+    if (current.value && current.value.id === res.data.id) {
+      await fetchOne(res.data.id);
+    }
+
+    return res.data;
+  }
+
   /** Reset local state for a new filing session. */
   function reset(): void {
     draft.value = null;
@@ -151,6 +186,7 @@ export const useRequestsStore = defineStore("requests", () => {
     updateDraft,
     attachDocument,
     submit,
+    startReview,
     reset,
   };
 });

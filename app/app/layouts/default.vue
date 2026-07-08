@@ -24,5 +24,7 @@ onMounted(async () => {
     <div class="lg:pl-64">
       <slot />
     </div>
+    <!-- Shell-level snackbar mount point for transient action feedback. -->
+    <AppToaster />
   </div>
 </template>

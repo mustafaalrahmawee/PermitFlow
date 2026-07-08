@@ -5,14 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requestStatusLabels } from "~/types/request";
 
-// UC-03 — the citizen's list of their own requests (main flow steps 1–2). Reads
-// the owner-scoped list from the requests store and renders the list, the empty
-// state (ext 2a — no requests yet), and a load error. Authenticated page: no
-// layout/middleware declared — the defaults cover it (docs/conventions.md
-// Frontend routing).
+// UC-03 / UC-06 — the caller's request list (main flow steps 1–2). The list is
+// role-scoped server-side, so a citizen sees the requests they own and a staff
+// member sees the requests assigned to them; this page renders the list, the
+// empty state (UC-03 ext 2a / UC-06 ext 2a — none in scope), and a load error.
+// Authenticated page: no layout/middleware declared — the defaults cover it
+// (docs/conventions.md Frontend routing).
 
 const store = useRequestsStore();
+const auth = useAuthStore();
 const { list, listMeta } = storeToRefs(store);
+const { user } = storeToRefs(auth);
+
+const isStaff = computed(() => user.value?.role === "staff_member");
 
 const loading = ref(true);
 const loadError = ref<string | null>(null);
@@ -54,12 +59,18 @@ onMounted(() => load());
   <main class="mx-auto max-w-4xl px-6 py-10">
     <div class="mb-6 flex items-end justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">My requests</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">
+          {{ isStaff ? "Assigned requests" : "My requests" }}
+        </h1>
         <p class="mt-1 text-sm text-muted-foreground">
-          Track the status and history of the requests you have submitted.
+          {{
+            isStaff
+              ? "Review the requests assigned to you and track their status and history."
+              : "Track the status and history of the requests you have submitted."
+          }}
         </p>
       </div>
-      <Button as-child>
+      <Button v-if="!isStaff" as-child>
         <NuxtLink to="/requests/new">New request</NuxtLink>
       </Button>
     </div>
@@ -70,14 +81,21 @@ onMounted(() => load());
       <AlertDescription>{{ loadError }}</AlertDescription>
     </Alert>
 
-    <!-- ext 2a — a citizen with no requests sees an empty list, no detail opened. -->
+    <!-- ext 2a — a caller with nothing in scope sees an empty list, no detail
+         opened: a citizen with no requests, or a staff member with none assigned. -->
     <Card v-else-if="list.length === 0">
       <CardContent class="py-12 text-center">
-        <p class="text-sm font-medium">You have no requests yet</p>
-        <p class="mt-1 text-sm text-muted-foreground">
-          When you submit a permit request it will appear here.
+        <p class="text-sm font-medium">
+          {{ isStaff ? "No requests are assigned to you yet" : "You have no requests yet" }}
         </p>
-        <Button as-child class="mt-4">
+        <p class="mt-1 text-sm text-muted-foreground">
+          {{
+            isStaff
+              ? "When an administrator assigns a request to you, it will appear here."
+              : "When you submit a permit request it will appear here."
+          }}
+        </p>
+        <Button v-if="!isStaff" as-child class="mt-4">
           <NuxtLink to="/requests/new">Start a request</NuxtLink>
         </Button>
       </CardContent>

@@ -42,20 +42,49 @@ class RequestController extends Controller
     private const PER_PAGE = 15;
 
     /**
-     * List the requests the calling citizen owns (UC-03 steps 1–2), paginated.
+     * List the requests in the caller's scope, paginated. The scope follows the
+     * caller's role so this one seam serves both worklists: a citizen sees the
+     * requests they own (UC-03 steps 1–2), a staff member sees the requests they
+     * are responsible for (UC-06 steps 1–2). Both are strictly scoped — a citizen
+     * never sees another person's request, a staff member never sees a request
+     * assigned to someone else — and a caller with nothing in scope gets an empty
+     * `data` array with a `meta.total` of 0 (UC-03 ext 2a, UC-06 ext 2a). `data`
+     * stays the flat array of requests and the page cursor rides alongside in
+     * `meta`, never nested under `data` [03_use-cases.md UC-03 steps 1–2, UC-06
+     * steps 1–2; BR-009; BR-016; docs/conventions.md API success responses].
      *
-     * The list is strictly owner-scoped: only rows whose `owner_user_account_id`
-     * is the caller's account are returned, so a citizen never sees another
-     * person's request. A citizen owning nothing gets an empty `data` array with
-     * a `meta.total` of 0 (ext 2a); `data` stays the flat array of requests and
-     * the page cursor rides alongside in `meta`, never nested under `data`
-     * [03_use-cases.md UC-03 steps 1–2; BR-016; docs/conventions.md API success
-     * responses].
+     * The scope column is chosen from the caller's role explicitly: a citizen is
+     * owner-scoped, a staff member is responsibility-scoped. An administrator is
+     * neither — request-scoped visibility grants administrators only oversight,
+     * not a list allow-all (BR-016 note; InteractsWithRequestScope), so they track
+     * through per-request oversight reads and the `/admin/requests` worklist
+     * (UC-05), and this list is empty for them rather than owner-scoped.
      */
     public function index(HttpRequest $httpRequest): JsonResponse
     {
+        $actor = $httpRequest->user();
+
+        $scopeColumn = match (true) {
+            $actor->isStaffMember() => 'responsible_staff_user_account_id',
+            $actor->isCitizen() => 'owner_user_account_id',
+            default => null,
+        };
+
+        if ($scopeColumn === null) {
+            return response()->json([
+                'data' => [],
+                'meta' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => self::PER_PAGE,
+                    'total' => 0,
+                ],
+                'message' => 'Requests retrieved.',
+            ]);
+        }
+
         $requests = Request::query()
-            ->where('owner_user_account_id', $httpRequest->user()->id)
+            ->where($scopeColumn, $actor->id)
             ->with('category')
             ->orderByDesc('id')
             ->paginate(self::PER_PAGE);
@@ -212,6 +241,59 @@ class RequestController extends Controller
         return response()->json([
             'data' => $request->fresh(),
             'message' => 'Request submitted.',
+        ]);
+    }
+
+    /**
+     * Start reviewing an assigned request (UC-06 step 5). Out-of-scope records
+     * read as not found (404, ext 3a); only the responsible staff member may
+     * start review (`review`, 403 otherwise) — an in-scope owner or administrator
+     * lacks the ability.
+     *
+     * The durable-write path is atomic: the guarded Submitted → In Review
+     * transition and its `status_changed` history entry are saved in one
+     * transaction, so the review is never treated as started without a recorded
+     * trace (ext 5a, ext 8a). Start review on a request that is not Submitted is a
+     * blocked transition — a 409 (ext 5a, ext 7a) — and a persistence fault rolls
+     * back to Submitted with no history row (500, ext 5a, ext 8a). UC-06 defines
+     * no notification [03_use-cases.md UC-06 step 5; BR-004, BR-009, BR-017;
+     * docs/conventions.md Status transitions].
+     */
+    public function startReview(HttpRequest $httpRequest, Request $request): JsonResponse
+    {
+        $actor = $httpRequest->user();
+
+        $this->ensureInScope($actor, $request);
+        abort_if(
+            Gate::forUser($actor)->denies('review', $request),
+            403,
+            'You are not allowed to review this request.',
+        );
+
+        $fromStatus = $request->status;
+
+        DB::transaction(function () use ($request, $actor, $fromStatus): void {
+            // Guarded transition — sets the status in memory, raising
+            // IllegalStatusTransitionException (rendered 409) on an illegal target.
+            $request->transitionTo(RequestStatus::InReview);
+            $request->save();
+
+            $sequence = (int) $request->historyEntries()->max('sequence_number') + 1;
+
+            $request->historyEntries()->create([
+                'sequence_number' => $sequence,
+                'actor_user_account_id' => $actor->id,
+                'event_type' => HistoryEventType::StatusChanged,
+                'from_status' => $fromStatus,
+                'to_status' => RequestStatus::InReview,
+                'summary' => 'Staff member started the review.',
+                'event_occurred_at' => now(),
+            ]);
+        });
+
+        return response()->json([
+            'data' => $request->fresh(),
+            'message' => 'Review started.',
         ]);
     }
 

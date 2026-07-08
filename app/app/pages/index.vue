@@ -59,6 +59,7 @@ const functionsByRole: Record<AuthUser["role"], AppFunction[]> = {
     {
       label: "Review assigned requests",
       description: "Work through the requests assigned to you.",
+      to: "/requests",
     },
     {
       label: "Record decisions",
