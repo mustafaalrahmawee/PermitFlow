@@ -63,10 +63,15 @@ class RequestPolicy
             && $request->status === RequestStatus::InReview;
     }
 
-    /** Responsible staff member only, request Ready for Decision [BR-007, BR-008, BR-009; UC-09]. */
+    /**
+     * Responsible staff member only [BR-007, BR-008, BR-009; UC-09]. Authorization
+     * is the role/ownership check; the Ready for Decision → Decided status legality
+     * is owned by the `TransitionsRequestStatus` guard, so a decision attempted on a
+     * request that is not Ready for Decision is a lifecycle conflict (409, ext 2a),
+     * not an authorization denial (403).
+     */
     public function decide(UserAccount $user, Request $request): bool
     {
-        return $this->isResponsibleStaff($user, $request)
-            && $request->status === RequestStatus::ReadyForDecision;
+        return $this->isResponsibleStaff($user, $request);
     }
 }

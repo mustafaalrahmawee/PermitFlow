@@ -75,12 +75,26 @@ export interface RequestMessage {
   sent_at: string | null;
 }
 
+export type DecisionOutcomeSlug = "approved" | "rejected";
+
 export interface RequestDecision {
   id: number;
   request_id: number;
-  outcome: "approved" | "rejected";
+  outcome: DecisionOutcomeSlug;
   decision_text: string | null;
   decided_at: string | null;
+}
+
+/**
+ * Fields the UC-09 record-a-decision seam accepts. `outcome` is required; the
+ * decision text and one decision document (with its description) are optional
+ * [docs/by-use-case/uc09_record-a-decision.md API seam].
+ */
+export interface DecisionInput {
+  outcome: DecisionOutcomeSlug;
+  decisionText?: string;
+  file?: File;
+  description?: string;
 }
 
 /**
@@ -101,7 +115,7 @@ export interface RequestListItem extends RequestRecord {
   category?: RequestCategory | null;
 }
 
-export const decisionOutcomeLabels: Record<RequestDecision["outcome"], string> = {
+export const decisionOutcomeLabels: Record<DecisionOutcomeSlug, string> = {
   approved: "Approved",
   rejected: "Rejected",
 };

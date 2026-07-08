@@ -1,6 +1,8 @@
 import type { PageMeta } from "~/types/pagination";
 import type { RequestCategory } from "~/types/request-category";
 import type {
+  DecisionInput,
+  RequestDecision,
   RequestDetail,
   RequestDocument,
   RequestListItem,
@@ -33,6 +35,8 @@ import type {
  *   - POST /requests/{id}/request-information → { data: RequestRecord, message }            (in_review → waiting_for_citizen)
  * UC-08 adds the responsible staff member's update-progress action:
  *   - PATCH /requests/{id}/status             → { data: RequestRecord, message }            (chosen status via the transition guard)
+ * UC-09 adds the responsible staff member's record-a-decision action:
+ *   - POST /requests/{id}/decision            → { data: RequestDecision, message }          (201, multipart; ready_for_decision → decided)
  * Actions throw on 403/404/409/422 (error envelope `{ message, errors? }`) for
  * the calling page to render. Mutations patch local state in place — no refetch.
  */
@@ -240,6 +244,54 @@ export const useRequestsStore = defineStore("requests", () => {
     return res.data;
   }
 
+  /**
+   * UC-09 — the responsible staff member records the decision that closes the
+   * request. `outcome` is required; a decision text and one decision document
+   * (with its description) are optional, so the call is multipart. On success the
+   * request moves Ready for Decision → Decided, the decision and a linked
+   * `decision_recorded` history entry are written, and the owning citizen is
+   * notified. The response carries only the created decision, so — as with the
+   * other transitions — the loaded detail is reloaded so status, decision, and
+   * history all reflect the change without the user refreshing; the matching
+   * worklist row is patched in place. A request not in the staff member's scope
+   * throws 404 (ext 1a), a caller who is not the responsible staff throws 403
+   * (ext 5a), a request no longer Ready for Decision throws 409 (ext 2a), an
+   * invalid outcome or decision document throws 422 (ext 3a, ext 4a), and a
+   * document store fault throws 500 (ext 4b) for the page to render.
+   */
+  async function recordDecision(
+    id: number | string,
+    input: DecisionInput,
+  ): Promise<RequestDecision> {
+    const form = new FormData();
+    form.append("outcome", input.outcome);
+    if (input.decisionText) {
+      form.append("decision_text", input.decisionText);
+    }
+    if (input.file) {
+      form.append("file", input.file);
+      if (input.description) {
+        form.append("description", input.description);
+      }
+    }
+
+    const res = await $fetch<{ data: RequestDecision }>(`/requests/${id}/decision`, {
+      method: "POST",
+      body: form,
+    });
+
+    const row = list.value.find((item) => item.id === res.data.request_id);
+    if (row) {
+      row.status = "decided";
+    }
+
+    if (current.value && current.value.id === res.data.request_id) {
+      await fetchOne(res.data.request_id);
+    }
+
+    return res.data;
+  }
+
   /** Reset local state for a new filing session. */
   function reset(): void {
     draft.value = null;
@@ -263,6 +315,7 @@ export const useRequestsStore = defineStore("requests", () => {
     startReview,
     requestInformation,
     updateStatus,
+    recordDecision,
     reset,
   };
 });

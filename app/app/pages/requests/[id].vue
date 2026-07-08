@@ -3,7 +3,9 @@ import { storeToRefs } from "pinia";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { DecisionOutcomeSlug } from "~/types/request";
 import { decisionOutcomeLabels, requestStatusLabels } from "~/types/request";
 
 // UC-03 / UC-06 — one request's detail, shared by the owning citizen tracking
@@ -145,6 +147,85 @@ async function onMarkReadyForDecision(): Promise<void> {
             : "Could not update the status. Please try again.";
   } finally {
     markingReady.value = false;
+  }
+}
+
+// UC-09 — the responsible staff member records the decision that closes the
+// request. The action is offered only while the request is Ready for Decision;
+// on success the request moves to Decided.
+const canRecordDecision = computed(
+  () =>
+    Boolean(current.value) &&
+    user.value?.role === "staff_member" &&
+    current.value?.responsible_staff_user_account_id === user.value?.id &&
+    current.value?.status === "ready_for_decision",
+);
+
+const decisionOutcomeOptions = decisionOutcomeLabels;
+const decisionOutcome = ref<DecisionOutcomeSlug | "">("");
+const decisionText = ref("");
+const decisionFile = ref<File | null>(null);
+const decisionDescription = ref("");
+const recordingDecision = ref(false);
+const decisionError = ref<string | null>(null);
+const decisionFieldErrors = ref<{ outcome?: string; file?: string; decision_text?: string }>({});
+
+function onDecisionFileChange(event: Event): void {
+  const target = event.target as HTMLInputElement;
+  decisionFile.value = target.files?.[0] ?? null;
+}
+
+async function onRecordDecision(): Promise<void> {
+  if (!current.value) {
+    return;
+  }
+  decisionError.value = null;
+  decisionFieldErrors.value = {};
+
+  // The outcome must be chosen before the decision can be recorded (ext 3a); the
+  // server validates it too, but this keeps the required choice explicit.
+  if (decisionOutcome.value === "") {
+    decisionFieldErrors.value = { outcome: "Choose an outcome to record the decision." };
+    return;
+  }
+
+  recordingDecision.value = true;
+  try {
+    await store.recordDecision(current.value.id, {
+      outcome: decisionOutcome.value,
+      decisionText: decisionText.value || undefined,
+      file: decisionFile.value ?? undefined,
+      description: decisionDescription.value || undefined,
+    });
+    decisionOutcome.value = "";
+    decisionText.value = "";
+    decisionFile.value = null;
+    decisionDescription.value = "";
+    toast("Decision recorded.");
+  } catch (error: unknown) {
+    const status = (error as { statusCode?: number }).statusCode;
+    const data = (
+      error as { data?: { errors?: Record<string, string[]> } }
+    ).data;
+    if (status === 422) {
+      // ext 3a / ext 4a — an invalid outcome or decision document is rejected inline.
+      decisionFieldErrors.value = {
+        outcome: data?.errors?.outcome?.[0],
+        file: data?.errors?.file?.[0],
+        decision_text: data?.errors?.decision_text?.[0],
+      };
+    } else {
+      decisionError.value =
+        status === 409
+          ? "This request can no longer be decided."
+          : status === 403
+            ? "You are not allowed to decide this request."
+            : status === 404
+              ? "This request is no longer available to you."
+              : "Could not record the decision. Please try again.";
+    }
+  } finally {
+    recordingDecision.value = false;
   }
 }
 
@@ -306,6 +387,91 @@ onMounted(async () => {
           >
             {{ markingReady ? "Updating…" : "Mark ready for decision" }}
           </Button>
+        </CardContent>
+      </Card>
+
+      <!-- UC-09 — the responsible staff member records the decision that closes
+           the request while it is Ready for Decision. The outcome is required; a
+           decision note and one decision document are optional. On success the
+           request moves to Decided, the decision and history entry are written,
+           and the citizen is notified. An invalid outcome or document (422), a
+           blocked transition (409), or a denial (403) surfaces here without
+           recording an incomplete decision. -->
+      <Card v-if="canRecordDecision" class="mb-6">
+        <CardHeader>
+          <CardTitle class="text-base">Record a decision</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p class="mb-3 text-sm text-muted-foreground">
+            Choose the outcome for this request. Recording it closes the request as
+            Decided and notifies the citizen.
+          </p>
+          <form class="space-y-4" @submit.prevent="onRecordDecision">
+            <div class="space-y-1.5">
+              <Label for="decision-outcome">Outcome</Label>
+              <select
+                id="decision-outcome"
+                v-model="decisionOutcome"
+                :aria-invalid="Boolean(decisionFieldErrors.outcome)"
+                class="border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" disabled>Select an outcome…</option>
+                <option
+                  v-for="(label, slug) in decisionOutcomeOptions"
+                  :key="slug"
+                  :value="slug"
+                >
+                  {{ label }}
+                </option>
+              </select>
+              <p v-if="decisionFieldErrors.outcome" class="text-sm text-destructive">
+                {{ decisionFieldErrors.outcome }}
+              </p>
+            </div>
+
+            <div class="space-y-1.5">
+              <Label for="decision-text">Decision note (optional)</Label>
+              <textarea
+                id="decision-text"
+                v-model="decisionText"
+                rows="3"
+                :aria-invalid="Boolean(decisionFieldErrors.decision_text)"
+                class="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="Explain the reasoning the citizen will see…"
+              />
+              <p v-if="decisionFieldErrors.decision_text" class="text-sm text-destructive">
+                {{ decisionFieldErrors.decision_text }}
+              </p>
+            </div>
+
+            <div class="space-y-1.5">
+              <Label for="decision-file">Decision document (optional)</Label>
+              <input
+                id="decision-file"
+                type="file"
+                :aria-invalid="Boolean(decisionFieldErrors.file)"
+                class="border-input file:text-foreground w-full rounded-md border bg-transparent px-3 py-1.5 text-sm shadow-xs file:mr-3 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+                @change="onDecisionFileChange"
+              />
+              <p v-if="decisionFieldErrors.file" class="text-sm text-destructive">
+                {{ decisionFieldErrors.file }}
+              </p>
+            </div>
+
+            <div v-if="decisionFile" class="space-y-1.5">
+              <Label for="decision-description">Document description (optional)</Label>
+              <Input
+                id="decision-description"
+                v-model="decisionDescription"
+                placeholder="What the decision document contains…"
+              />
+            </div>
+
+            <p v-if="decisionError" class="text-sm text-destructive">{{ decisionError }}</p>
+            <Button type="submit" :disabled="recordingDecision">
+              {{ recordingDecision ? "Recording…" : "Record decision" }}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 

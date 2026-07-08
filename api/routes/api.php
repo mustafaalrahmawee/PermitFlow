@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\RequestAssignmentController;
 use App\Http\Controllers\Admin\RequestCategoryController as AdminRequestCategoryController;
 use App\Http\Controllers\Admin\UserAccountController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\DecisionController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\RequestCategoryController;
 use App\Http\Controllers\RequestController;
@@ -127,6 +128,20 @@ Route::middleware('auth:sanctum')->group(function () {
      * transitions].
      */
     Route::patch('/requests/{request}/status', [RequestController::class, 'updateStatus']);
+
+    /*
+     * UC-09 — the responsible staff member records the decision that closes a
+     * request. Request-scoped with `RequestPolicy@decide` (responsible staff only)
+     * enforced in the controller; an out-of-scope record reads as 404, not 403.
+     * The `outcome` must be a defined `DecisionOutcome` (422) and the request must
+     * be Ready for Decision to move to Decided through the status guard (409). It
+     * records the decision, stores the optional decision document to the S3/MinIO
+     * disk, writes the linked `decision_recorded` history entry in the same
+     * transaction, and best-effort notifies the citizen [03_use-cases.md UC-09;
+     * BR-004, BR-006, BR-007, BR-008, BR-009, BR-016, BR-017; docs/conventions.md
+     * Authorization, Status transitions, Storage].
+     */
+    Route::post('/requests/{request}/decision', [DecisionController::class, 'store']);
 
     /*
      * UC-05 — administrator assigns or reassigns a submitted/active request to a
