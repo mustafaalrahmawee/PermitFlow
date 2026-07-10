@@ -204,5 +204,19 @@ Route::middleware('auth:sanctum')->group(function () {
      */
     Route::middleware('can:view-reporting')->group(function () {
         Route::get('/reporting/staff-summary', [ReportingController::class, 'staffSummary']);
+
+        /*
+         * UC-14 — an administrator views organization-level reporting summaries for
+         * oversight. The administrative variant is narrower than the shared
+         * `view-reporting` gate (staff or admin): ext 2a denies a non-administrator,
+         * so the controller adds an in-controller Administrator role check (403,
+         * ext 1a/2a). The summary is a pure read, recomputed on every request, and
+         * aggregates organization-wide — request volume, per-status counts, and
+         * processing progress including assignment — carrying organization-level
+         * aggregates only, no per-request information (ext 4a); a view with no
+         * matching requests is a zero bucket rather than an error (ext 3a)
+         * [03_use-cases.md UC-14; BR-015, BR-016].
+         */
+        Route::get('/reporting/admin-summary', [ReportingController::class, 'adminSummary']);
     });
 });

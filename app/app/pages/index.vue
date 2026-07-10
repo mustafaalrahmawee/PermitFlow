@@ -99,6 +99,7 @@ const functionsByRole: Record<AuthUser["role"], AppFunction[]> = {
     {
       label: "View reporting",
       description: "Track volumes, decisions, and turnaround.",
+      to: "/reporting/admin",
     },
   ],
 };

@@ -26,3 +26,32 @@ export interface StaffReportingSummary {
     awaiting_citizen: number;
   };
 }
+
+/**
+ * UC-14 administrative reporting summary, mirroring the admin seam
+ * (`GET /api/reporting/admin-summary`). Same derived, never-persisted nature as
+ * the staff summary, but organization-wide (single institution) rather than
+ * scoped to one staff member, and with an assignment breakdown for oversight.
+ * The payload carries organization-level aggregates only — no per-request
+ * information [docs/by-use-case/uc14_view-administrative-reporting-summaries.md
+ * API seam].
+ */
+export interface AdminReportingSummary {
+  scope: string;
+  volume: {
+    total: number;
+  };
+  by_status: StatusCounts;
+  processing_progress: {
+    /** Requests still being processed (everything not yet Decided). */
+    open: number;
+    /** Completed requests. */
+    decided: number;
+    /** Requests blocked on the citizen. */
+    awaiting_citizen: number;
+    /** Requests with a responsible staff member assigned. */
+    assigned: number;
+    /** Requests still awaiting assignment. */
+    unassigned: number;
+  };
+}

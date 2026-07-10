@@ -39,6 +39,7 @@ const allLinks: NavLink[] = [
   { label: "New request", to: "/requests/new", icon: LucideFilePlus, roles: ["citizen"] },
   { label: "Assigned requests", to: "/requests", icon: LucideClipboardList, roles: ["staff_member"] },
   { label: "Reporting", to: "/reporting", icon: LucideChartColumn, roles: ["staff_member"] },
+  { label: "Reporting", to: "/reporting/admin", icon: LucideChartColumn, roles: ["administrator"] },
   { label: "Assign requests", to: "/admin/requests", icon: LucideClipboardList, roles: ["administrator"] },
   { label: "User accounts", to: "/admin/user-accounts", icon: LucideUsers, roles: ["administrator"] },
   { label: "Request categories", to: "/admin/request-categories", icon: LucideTags, roles: ["administrator"] },
