@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DecisionController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\ReportingController;
 use App\Http\Controllers\RequestCategoryController;
 use App\Http\Controllers\RequestController;
 use Illuminate\Support\Facades\Route;
@@ -188,5 +189,20 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/requests', [RequestAssignmentController::class, 'index']);
         Route::get('/admin/assignable-staff', [RequestAssignmentController::class, 'assignableStaff']);
         Route::put('/requests/{request}/assignment', [RequestAssignmentController::class, 'update']);
+    });
+
+    /*
+     * UC-13 — a staff member views reporting summaries for work planning. The
+     * `view-reporting` gate admits only an active staff member or administrator
+     * and fails closed for citizens or inactive actors (403, ext 1a) [BR-015;
+     * docs/conventions.md Authorization]. The summary is a pure read, recomputed
+     * on every request; its content is bounded by request-scoped access — it
+     * aggregates only over the requests the actor is responsible for, so no
+     * request information outside the actor's scope is revealed (ext 2a, ext 4a)
+     * and a staff member with no matching requests gets an empty summary rather
+     * than an error (ext 3a) [03_use-cases.md UC-13; BR-016].
+     */
+    Route::middleware('can:view-reporting')->group(function () {
+        Route::get('/reporting/staff-summary', [ReportingController::class, 'staffSummary']);
     });
 });
